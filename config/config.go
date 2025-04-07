@@ -10,19 +10,21 @@ import (
 
 // Config holds application configuration
 type Config struct {
-	Port               string
-	DBName             string
-	JWTKey             string
-	SaltRound          int
-	LocalTextApi       string
-	LocalTextApiUrl    string
-	SendgridApiKey     string
-	SendgridSenderMail string
-	SandgridSenderName string
-	SandboxApiURL      string // Added for Sandbox API URL
-	SandboxApiKey      string // Added for Sandbox API Key
-	SandboxSecretKey   string // Added for Sandbox Secret Key
-	SandboxApiVersion  string // Added for Sandbox API Version
+	Port      string
+	DBName    string
+	JWTKey    string
+	SaltRound int
+
+	LocalTextApi    string
+	LocalTextApiUrl string
+
+	EmailSender string
+	Password    string // SMTP Password
+
+	SandboxApiURL     string // Added for Sandbox API URL
+	SandboxApiKey     string // Added for Sandbox API Key
+	SandboxSecretKey  string // Added for Sandbox Secret Key
+	SandboxApiVersion string // Added for Sandbox API Version
 }
 
 // AppConfig is a global variable to access configuration
@@ -37,19 +39,21 @@ func LoadConfig() {
 
 	// Initialize AppConfig with values from environment variables
 	AppConfig = &Config{
-		Port:               getEnv("PORT", "3000"),
-		DBName:             getEnv("DB_NAME", "credUser.db"),
-		JWTKey:             getEnv("JWT_SECRET_KEY", "defaultSecret"),
-		SaltRound:          getEnvInt("SALT_ROUND", 10),
-		LocalTextApi:       getEnv("LOCAL_SMS_API_KEY", "defaultSecret"),
-		LocalTextApiUrl:    getEnv("LOCAL_SMS_API_URL", "defaultSecret"),
-		SendgridApiKey:     getEnv("SENDGRID_API_KEY", "defaultSecret"),
-		SendgridSenderMail: getEnv("SENDGRID_MAIL_FROM", "defaultSecret"),
-		SandgridSenderName: getEnv("SENDGRID_MAIL_NAME", "defaultSecret"),
-		SandboxApiURL:      getEnv("SANDBOX_API_URL", "https://api.sandbox.credpay.io/v1/"),
-		SandboxApiKey:      getEnv("SANDBOX_API_KEY", "key_live_HZYsCB58PuDIMsyhCW2Uvxq576V6Pr6n"),
-		SandboxSecretKey:   getEnv("SANDBOX_SECRET_KEY", "secret_live_6GBggEXGr5OCxbVXpuwESvKcHXFcQ7MZ"),
-		SandboxApiVersion:  getEnv("SANDBOX_API_VERSION", "2.0"),
+		Port:      getEnv("PORT", "3000"),
+		DBName:    getEnv("DB_NAME", "credUser.db"),
+		JWTKey:    getEnv("JWT_SECRET_KEY", "defaultSecret"),
+		SaltRound: getEnvInt("SALT_ROUND", 10),
+
+		LocalTextApi:    getEnv("LOCAL_SMS_API_KEY", "defaultSecret"),
+		LocalTextApiUrl: getEnv("LOCAL_SMS_API_URL", "defaultSecret"),
+
+		EmailSender: getEnv("EMAIL_SENDER", "defaultSecret"),
+		Password:    getEnv("PASSWORD", "defaultSecret"),
+
+		SandboxApiURL:     getEnv("SANDBOX_API_URL", "https://api.sandbox.credpay.io/v1/"),
+		SandboxApiKey:     getEnv("SANDBOX_API_KEY", "key_live_HZYsCB58PuDIMsyhCW2Uvxq576V6Pr6n"),
+		SandboxSecretKey:  getEnv("SANDBOX_SECRET_KEY", "secret_live_6GBggEXGr5OCxbVXpuwESvKcHXFcQ7MZ"),
+		SandboxApiVersion: getEnv("SANDBOX_API_VERSION", "2.0"),
 	}
 
 	// Validate critical configuration

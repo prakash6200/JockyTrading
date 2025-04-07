@@ -6,11 +6,9 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/smtp"
 	"net/url"
 	"time"
-
-	"github.com/sendgrid/sendgrid-go"
-	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
 
 // GenerateOTP generates a 6-digit OTP
@@ -57,37 +55,45 @@ type EmailContent struct {
 }
 
 func SendOTPEmail(otp, email string) error {
-	// Create email content
-	subject := "Your OTP Code"
-	htmlContent := "<p>Your OTP code is: <strong>" + otp + "</strong></p>"
-	content := EmailContent{
-		Subject: subject,
-		HTML:    htmlContent,
+	smtpHost := "smtp.gmail.com"
+	smtpPort := "587"
+
+	from := config.AppConfig.EmailSender
+	password := config.AppConfig.Password // App password
+
+	// Receiver email
+	to := []string{
+		email, // dynamic receiver
 	}
 
-	// Create the sender and recipient email objects
-	from := mail.NewEmail(config.AppConfig.SandgridSenderName, config.AppConfig.SendgridSenderMail)
-	toEmail := mail.NewEmail("", email)
+	// Email content
+	subject := "Subject: OTP Verification Code for Jockey Trading\nMIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 
-	// Construct the email message
-	message := mail.NewSingleEmail(from, content.Subject, toEmail, "", content.HTML)
+	body := fmt.Sprintf(`
+		<html>
+			<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
+				<div style="max-width: 500px; margin: auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+					<h2 style="color: #333333; text-align: center;">Jockey Trading OTP Verification</h2>
+					<p style="font-size: 16px; color: #555555; text-align: center;">Your One Time Password (OTP) is:</p>
+					<h1 style="text-align: center; color: #4CAF50; font-size: 40px; margin: 20px 0;">%s</h1>
+					<p style="font-size: 14px; color: #999999; text-align: center;">Do not share this OTP with anyone.</p>
+					<p style="text-align: center; font-size: 12px; color: #bbbbbb; margin-top: 30px;">Thank you for using our service.</p>
+				</div>
+			</body>
+		</html>
+	`, otp)
 
-	// Initialize the SendGrid client
-	client := sendgrid.NewSendClient(config.AppConfig.SendgridApiKey)
+	message := []byte(subject + "\n" + body)
 
-	// Send the email
-	response, err := client.Send(message)
+	// Auth setup
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, to, message)
 	if err != nil {
-		log.Println("Error sending email:", err)
+		fmt.Println("Error sending email:", err)
 		return err
 	}
 
-	// Log response details
-	if response.StatusCode >= 200 && response.StatusCode < 300 {
-		log.Println("Email sent successfully:", response.StatusCode)
-	} else {
-		log.Println("Failed to send email. Status code:", response.StatusCode)
-		log.Println("Response body:", response.Body)
-	}
+	fmt.Println("Email sent successfully to", email)
 	return nil
 }

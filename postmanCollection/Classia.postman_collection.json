@@ -1,0 +1,675 @@
+{
+	"info": {
+		"_postman_id": "819cefbb-87a8-4abd-a57a-e5625c98e484",
+		"name": "Jocky Trading",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "23378522"
+	},
+	"item": [
+		{
+			"name": "UserAuth",
+			"item": [
+				{
+					"name": "Singup",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "name",
+									"value": "Prakash kumar",
+									"type": "text"
+								},
+								{
+									"key": "email",
+									"value": "prakash2609@gmail.com",
+									"type": "text"
+								},
+								{
+									"key": "mobile",
+									"value": "6200134723",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "asdfasaf",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/auth/signup",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"auth",
+								"signup"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonResponse = pm.response.json();",
+									"",
+									"// Extract the token from the response",
+									"var jwtToken = jsonResponse.data.token;",
+									"",
+									"// Set the token as an environment variable",
+									"pm.environment.set(\"jwtToken\", jwtToken);pm.test(\"Response status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"// Extract the token from the response and set it as an environment variable",
+									"var jwtToken = pm.response.json().data.token;",
+									"pm.environment.set(\"jwtToken\", jwtToken);"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "email",
+									"value": "prakashkrw630@gmail.com",
+									"type": "text",
+									"disabled": true
+								},
+								{
+									"key": "mobile",
+									"value": "6200134797",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "12345678",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/auth/login",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login HIstory",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": []
+						},
+						"url": {
+							"raw": "{{host}}/auth/login/history?limit=10&page=1",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"auth",
+								"login",
+								"history"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Send OTP Mobile/Email",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "mobile",
+									"value": "6200134797",
+									"type": "text"
+								},
+								{
+									"key": "email",
+									"value": "prakaskrw60@gmail.com",
+									"type": "text",
+									"disabled": true
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/auth/send/otp",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"auth",
+								"send",
+								"otp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify OTP Mobile/Email",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "mobile",
+									"value": "6200134797",
+									"type": "text"
+								},
+								{
+									"key": "code",
+									"value": "806019",
+									"type": "text"
+								},
+								{
+									"key": "email",
+									"value": "prakaskrw60@gmail.com",
+									"type": "text",
+									"disabled": true
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/auth/verify/otp",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"auth",
+								"verify",
+								"otp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot password send otp",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "mobile",
+									"value": "6200134797",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/auth/forgot/password/send/otp",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"auth",
+								"forgot",
+								"password",
+								"send",
+								"otp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot password Verify OTP",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "mobile",
+									"value": "6200134797",
+									"type": "text"
+								},
+								{
+									"key": "code",
+									"value": "550616",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/auth/forgot/password/verify/otp",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"auth",
+								"forgot",
+								"password",
+								"verify",
+								"otp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Reset password",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MzcxOTU1OTQsImlhdCI6MTczNzEwOTE5NCwibmFtZSI6IlByYWthc2gga3VtYXIiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6Nn0.pLoMmBtAfgzykZXFuLpDA0ugsrWRWC3yqBlFbmwbd40"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "password",
+									"value": "1234567890",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/auth/reset/password",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"auth",
+								"reset",
+								"password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Change Current password",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MzcxOTU1OTQsImlhdCI6MTczNzEwOTE5NCwibmFtZSI6IlByYWthc2gga3VtYXIiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6Nn0.pLoMmBtAfgzykZXFuLpDA0ugsrWRWC3yqBlFbmwbd40"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "currentPassword",
+									"value": "12345568",
+									"type": "text"
+								},
+								{
+									"key": "newPassword",
+									"value": "12345678",
+									"type": "text"
+								},
+								{
+									"key": "cnfPassword",
+									"value": "12345678",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/auth/change/login/password",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"auth",
+								"change",
+								"login",
+								"password"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User Profile",
+			"item": [
+				{
+					"name": "Add Bank Details",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "bankName",
+									"value": "PNB",
+									"type": "text"
+								},
+								{
+									"key": "accountNo",
+									"value": "6485000100100943",
+									"type": "text"
+								},
+								{
+									"key": "holderName",
+									"value": "Prakash kumar",
+									"type": "text"
+								},
+								{
+									"key": "ifscCode",
+									"value": "PUNB0648500",
+									"type": "text"
+								},
+								{
+									"key": "branchName",
+									"value": "Sasaram",
+									"type": "text"
+								},
+								{
+									"key": "accountType",
+									"value": "savings",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/user/add/bank/account",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"user",
+								"add",
+								"bank",
+								"account"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Send Adhar OTP",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "aadharNumber",
+									"value": "393153264739",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/user/send/adhar/otp",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"user",
+								"send",
+								"adhar",
+								"otp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Adhar OTP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "referenceId",
+									"value": "28751941",
+									"type": "text"
+								},
+								{
+									"key": "otp",
+									"value": "195174",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/user/verify/adhar/otp",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"user",
+								"verify",
+								"adhar",
+								"otp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Pan Adhar Link Status",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "panNumber",
+									"value": "IYIPK8472G",
+									"type": "text"
+								},
+								{
+									"key": "adharNumber",
+									"value": "393153264739",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{host}}/user/pan/adhar/link/status",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"user",
+								"pan",
+								"adhar",
+								"link",
+								"status"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "host",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "jwtToken",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

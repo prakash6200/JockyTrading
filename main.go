@@ -5,11 +5,11 @@ import (
 	"fib/database"
 	authRoutes "fib/routers/authRoutes"
 	userProfileRoutes "fib/routers/userRoutes"
-	"log"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"log"
 )
 
 func main() {
