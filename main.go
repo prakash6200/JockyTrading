@@ -4,6 +4,7 @@ import (
 	"fib/config"
 	"fib/database"
 	authRoutes "fib/routers/authRoutes"
+	superAdminRoutes "fib/routers/superAdmin"
 	userProfileRoutes "fib/routers/userRoutes"
 
 	"github.com/gofiber/fiber/v2"
@@ -34,6 +35,7 @@ func main() {
 
 	authRoutes.SetupAuthRoutes(app)
 	userProfileRoutes.SetupUserRoutes(app)
+	superAdminRoutes.SetupSuperAdminRoutes(app)
 
 	log.Printf("Server is running on port %s", config.AppConfig.Port)
 	log.Fatal(app.Listen(":" + config.AppConfig.Port))

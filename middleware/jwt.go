@@ -10,8 +10,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-// var jwtSecret = []byte("asdfasqsdfgsdasdfasdfawqe") // Replace with your actual secret key
-
 // GenerateJWT generates a JWT token for the user
 func GenerateJWT(userID uint, name, role string) (string, error) {
 	// Set claims

@@ -1,4 +1,4 @@
-package userValidator
+package amcValidator
 
 import (
 	"fib/middleware"
