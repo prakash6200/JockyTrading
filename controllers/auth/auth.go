@@ -17,40 +17,50 @@ import (
 )
 
 func Signup(c *fiber.Ctx) error {
-	user := new(models.User)
-	if err := c.BodyParser(user); err != nil {
+	var reqData models.User
+
+	// Parse Request Body
+	if err := c.BodyParser(&reqData); err != nil {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
 	}
 
+	db := database.Database.Db
+
 	// Check if email already exists
-	existingUser := models.User{}
-	result := database.Database.Db.Where("email = ?", user.Email).First(&existingUser)
-	if result.RowsAffected > 0 {
+	if err := db.Where("email = ?", reqData.Email).First(&models.User{}).Error; err == nil {
 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Email is already registered!", nil)
 	}
 
 	// Check if mobile already exists
-	existingUserByMobile := models.User{}
-	result = database.Database.Db.Where("mobile = ?", user.Mobile).First(&existingUserByMobile)
-	if result.RowsAffected > 0 {
+	if err := db.Where("mobile = ?", reqData.Mobile).First(&models.User{}).Error; err == nil {
 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Mobile number is already registered!", nil)
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), config.AppConfig.SaltRound)
+	// Hash Password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(reqData.Password), config.AppConfig.SaltRound)
 	if err != nil {
 		log.Printf("Error hashing password: %v", err)
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to process your request!", nil)
 	}
-	user.Password = string(hashedPassword)
 
-	if err := database.Database.Db.Create(user).Error; err != nil {
+	// Prepare User Struct for DB Entry
+	newUser := models.User{
+		Name:     reqData.Name,
+		Email:    reqData.Email,
+		Mobile:   reqData.Mobile,
+		Password: string(hashedPassword),
+	}
+
+	// Create User
+	if err := db.Create(&newUser).Error; err != nil {
 		log.Printf("Error saving user to database: %v", err)
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to Signup user!", nil)
 	}
 
-	user.Password = ""
+	// Clean Response
+	newUser.Password = ""
 
-	return middleware.JsonResponse(c, fiber.StatusCreated, true, "User registered successfully.", user)
+	return middleware.JsonResponse(c, fiber.StatusCreated, true, "User registered successfully.", newUser)
 }
 
 func Login(c *fiber.Ctx) error {

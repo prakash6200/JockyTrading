@@ -1,11 +1,14 @@
 package superAdminController
 
 import (
+	"fib/config"
 	"fib/database"
 	"fib/middleware"
 	"fib/models"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func UserList(c *fiber.Ctx) error {
@@ -61,4 +64,54 @@ func UserList(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "User List.", response)
+}
+
+func RegisterAMC(c *fiber.Ctx) error {
+	var reqData models.User
+
+	// Parse Request Body
+	if err := c.BodyParser(&reqData); err != nil {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+	}
+
+	db := database.Database.Db
+
+	// Check if email already exists
+	if err := db.Where("email = ?", reqData.Email).First(&models.User{}).Error; err == nil {
+		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Email is already registered!", nil)
+	}
+
+	// Check if mobile already exists
+	if err := db.Where("mobile = ?", reqData.Mobile).First(&models.User{}).Error; err == nil {
+		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Mobile number is already registered!", nil)
+	}
+
+	// Hash Password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(reqData.Password), config.AppConfig.SaltRound)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to process your request!", nil)
+	}
+
+	// Prepare User Struct for DB Entry
+	newUser := models.User{
+		Name:             reqData.Name,
+		Email:            reqData.Email,
+		Mobile:           reqData.Mobile,
+		Password:         string(hashedPassword),
+		Role:             string("AMC"),
+		IsMobileVerified: true,
+		IsEmailVerified:  true,
+	}
+
+	// Create User
+	if err := db.Create(&newUser).Error; err != nil {
+		log.Printf("Error saving AMC to database: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to Register AMC!", nil)
+	}
+
+	// Clean Response
+	newUser.Password = ""
+
+	return middleware.JsonResponse(c, fiber.StatusCreated, true, "AMC registered successfully.", newUser)
 }
