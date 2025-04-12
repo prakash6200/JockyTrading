@@ -46,3 +46,47 @@ func StockList() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func AmcPickUnpickStockValidator() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			StockID uint   `json:"stockId"`
+			Action  string `json:"action"`
+		})
+
+		// Parse JSON body
+		if err := c.BodyParser(reqData); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Invalid request body!",
+				"errors":  nil,
+			})
+		}
+
+		errors := make(map[string]string)
+
+		// Validate StockID
+		if reqData.StockID == 0 {
+			errors["stockId"] = "Stock ID must be a positive number!"
+		}
+
+		// Validate Action
+		validActions := map[string]bool{"pick": true, "unpick": true}
+		if _, ok := validActions[reqData.Action]; !ok {
+			errors["action"] = "Action must be either 'pick' or 'unpick'!"
+		}
+
+		// Return errors if any
+		if len(errors) > 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Validation failed!",
+				"errors":  errors,
+			})
+		}
+
+		// Set the validated request in context
+		c.Locals("validatedAmcPickUnpickStock", reqData)
+		return c.Next()
+	}
+}

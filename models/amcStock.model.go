@@ -6,7 +6,7 @@ import (
 
 type AmcStocks struct {
 	gorm.Model      // Auto includes ID, CreatedAt, UpdatedAt, DeletedAt
-	UserId     uint // AMC id
+	UserID     uint `gorm:"foreignKey:UserID"` //AMC id
 	StockId    uint
 	IsDeleted  bool `gorm:"default:false"`
 }

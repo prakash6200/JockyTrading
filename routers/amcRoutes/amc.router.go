@@ -12,4 +12,5 @@ func SetupAMCRoutes(app *fiber.App) {
 	userGroup := app.Group("/amc")
 
 	userGroup.Get("/stock/list", amcValidators.StockList(), middleware.JWTMiddleware, amcControllers.StockList)
+	userGroup.Post("/select/stock", amcValidators.AmcPickUnpickStockValidator(), middleware.JWTMiddleware, amcControllers.AmcPickUnpickStock)
 }

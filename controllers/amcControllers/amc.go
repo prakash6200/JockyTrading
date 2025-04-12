@@ -17,6 +17,7 @@ func SyncStockHandler(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Stock sync started"})
 }
 
+// fetch stocks from market
 func FetchAndStoreStocks() {
 	url := "https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=" + config.AppConfig.AlphaVantageApiKey
 
@@ -109,4 +110,63 @@ func StockList(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Stock list fetched successfully!", response)
+}
+
+func AmcPickUnpickStock(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false", userId).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	// Get validated request
+	reqData, ok := c.Locals("validatedAmcPickUnpickStock").(*struct {
+		StockID uint   `json:"stockId"`
+		Action  string `json:"action"` // "pick" or "unpick"
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	db := database.Database.Db
+
+	switch reqData.Action {
+	case "pick":
+		// Limit to 10 active picks
+		var count int64
+		db.Model(&models.AmcStocks{}).Where("user_id = ? AND is_deleted = false", userId).Count(&count)
+		if count >= 10 {
+			return middleware.JsonResponse(c, fiber.StatusForbidden, false, "You can pick up to 10 stocks only", nil)
+		}
+
+		// Check if already picked
+		var existing models.AmcStocks
+		err := db.Where("user_id = ? AND stock_id = ? AND is_deleted = false", userId, reqData.StockID).
+			First(&existing).Error
+		if err == nil {
+			return middleware.JsonResponse(c, fiber.StatusConflict, false, "Stock already picked", nil)
+		}
+
+		// Save new pick
+		pick := models.AmcStocks{UserID: userId, StockId: reqData.StockID}
+		if err := db.Create(&pick).Error; err != nil {
+			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to pick stock", nil)
+		}
+
+		return middleware.JsonResponse(c, fiber.StatusOK, true, "Stock picked successfully", nil)
+
+	case "unpick":
+		// Soft delete the picked stock
+		if err := db.Model(&models.AmcStocks{}).
+			Where("user_id = ? AND stock_id = ? AND is_deleted = false", userId, reqData.StockID).
+			Update("is_deleted", true).Error; err != nil {
+			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to unpick stock", nil)
+		}
+
+		return middleware.JsonResponse(c, fiber.StatusOK, true, "Stock unpicked successfully", nil)
+
+	default:
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid action. Use 'pick' or 'unpick'.", nil)
+	}
 }
