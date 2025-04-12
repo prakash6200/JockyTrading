@@ -9,4 +9,5 @@ type Stocks struct {
 	Symbol     string `gorm:"unique"`
 	Name       string `gorm:"not null"`
 	Sector     string `gorm:"not null"`
+	IsDeleted  bool   `gorm:"default:false"`
 }

@@ -48,3 +48,65 @@ func FetchAndStoreStocks() {
 
 	log.Println("Stock list sync completed")
 }
+
+func StockList(c *fiber.Ctx) error {
+	// Retrieve the userId from the JWT token (added by JWTMiddleware)
+	userId := c.Locals("userId").(uint)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", userId, false).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Access Denied!", nil)
+	}
+
+	// Retrieve validated request data
+	reqData, ok := c.Locals("validatedStockList").(*struct {
+		Page   *int    `json:"page"`
+		Limit  *int    `json:"limit"`
+		Search *string `json:"search"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	// Default pagination
+	page := 1
+	limit := 10
+	if reqData.Page != nil {
+		page = *reqData.Page
+	}
+	if reqData.Limit != nil {
+		limit = *reqData.Limit
+	}
+	offset := (page - 1) * limit
+
+	// Prepare query
+	db := database.Database.Db.Model(&models.Stocks{}).Where("is_deleted = ?", false)
+
+	// Optional: Apply search filter
+	if reqData.Search != nil && *reqData.Search != "" {
+		search := "%" + *reqData.Search + "%"
+		db = db.Where("symbol ILIKE ? OR name ILIKE ? OR sector ILIKE ?", search, search, search)
+	}
+
+	// Get total count
+	var total int64
+	db.Count(&total)
+
+	// Fetch paginated data
+	var stocks []models.Stocks
+	if err := db.Offset(offset).Limit(limit).Order("created_at desc").Find(&stocks).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch stocks!", nil)
+	}
+
+	// Response
+	response := map[string]interface{}{
+		"stocks": stocks,
+		"pagination": map[string]interface{}{
+			"total": total,
+			"page":  page,
+			"limit": limit,
+		},
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Stock list fetched successfully!", response)
+}

@@ -4,6 +4,7 @@ import (
 	"fib/config"
 	stockCronController "fib/controllers/amcControllers"
 	"fib/database"
+	amcRoutes "fib/routers/amcRoutes"
 	authRoutes "fib/routers/authRoutes"
 	superAdminRoutes "fib/routers/superAdmin"
 	userProfileRoutes "fib/routers/userRoutes"
@@ -39,6 +40,7 @@ func main() {
 	authRoutes.SetupAuthRoutes(app)
 	userProfileRoutes.SetupUserRoutes(app)
 	superAdminRoutes.SetupSuperAdminRoutes(app)
+	amcRoutes.SetupAMCRoutes(app)
 
 	startCron()
 	log.Printf("Server is running on port %s", config.AppConfig.Port)

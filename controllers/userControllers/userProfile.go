@@ -34,7 +34,7 @@ func AddBankAccount(c *fiber.Ctx) error {
 
 	var user models.User
 	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", userId, false).First(&user).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch user!", nil)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Access Denied!", nil)
 	}
 
 	// Check if the user already has a bank account
