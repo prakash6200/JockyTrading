@@ -25,6 +25,8 @@ type Config struct {
 	SandboxApiKey     string // Added for Sandbox API Key
 	SandboxSecretKey  string // Added for Sandbox Secret Key
 	SandboxApiVersion string // Added for Sandbox API Version
+
+	AlphaVantageApiKey string // Stock market data
 }
 
 // AppConfig is a global variable to access configuration
@@ -54,6 +56,8 @@ func LoadConfig() {
 		SandboxApiKey:     getEnv("SANDBOX_API_KEY", "key_live_HZYsCB58PuDIMsyhCW2Uvxq576V6Pr6n"),
 		SandboxSecretKey:  getEnv("SANDBOX_SECRET_KEY", "secret_live_6GBggEXGr5OCxbVXpuwESvKcHXFcQ7MZ"),
 		SandboxApiVersion: getEnv("SANDBOX_API_VERSION", "2.0"),
+
+		AlphaVantageApiKey: getEnv("ALPHA_VANTAGE_API_KEY", "defaulstSecret"),
 	}
 
 	// Validate critical configuration

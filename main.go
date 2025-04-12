@@ -2,15 +2,18 @@ package main
 
 import (
 	"fib/config"
+	stockCronController "fib/controllers/amcControllers"
 	"fib/database"
 	authRoutes "fib/routers/authRoutes"
 	superAdminRoutes "fib/routers/superAdmin"
 	userProfileRoutes "fib/routers/userRoutes"
 
+	"log"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-	"log"
+	"github.com/robfig/cron/v3"
 )
 
 func main() {
@@ -37,6 +40,17 @@ func main() {
 	userProfileRoutes.SetupUserRoutes(app)
 	superAdminRoutes.SetupSuperAdminRoutes(app)
 
+	startCron()
 	log.Printf("Server is running on port %s", config.AppConfig.Port)
 	log.Fatal(app.Listen(":" + config.AppConfig.Port))
+}
+
+func startCron() {
+	stockCronController.FetchAndStoreStocks()
+	c := cron.New()
+	c.AddFunc("0 6 * * *", func() {
+		log.Println("Running daily stock sync cron job...")
+		stockCronController.FetchAndStoreStocks()
+	})
+	c.Start()
 }
