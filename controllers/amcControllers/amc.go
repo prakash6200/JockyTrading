@@ -116,7 +116,7 @@ func AmcPickUnpickStock(c *fiber.Ctx) error {
 	userId := c.Locals("userId").(uint)
 
 	var user models.User
-	if err := database.Database.Db.Where("id = ? AND is_deleted = false", userId).First(&user).Error; err != nil {
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "AMC").First(&user).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
 	}
 
@@ -169,4 +169,69 @@ func AmcPickUnpickStock(c *fiber.Ctx) error {
 	default:
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid action. Use 'pick' or 'unpick'.", nil)
 	}
+}
+
+func StockPickedByAMCList(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	// Validate AMC user
+	var user models.User
+	if err := database.Database.Db.
+		Where("id = ? AND is_deleted = false AND role = ?", userId, "AMC").
+		First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	// Get validated pagination request
+	reqData, ok := c.Locals("validatedStockList").(*struct {
+		Page  *int `json:"page"`
+		Limit *int `json:"limit"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	// Set default pagination
+	page := 1
+	limit := 10
+	if reqData.Page != nil {
+		page = *reqData.Page
+	}
+	if reqData.Limit != nil {
+		limit = *reqData.Limit
+	}
+	offset := (page - 1) * limit
+
+	// Subquery to get picked stock IDs
+	var pickedStockIDs []uint
+	if err := database.Database.Db.
+		Model(&models.AmcStocks{}).
+		Where("user_id = ? AND is_deleted = false", userId).
+		Pluck("stock_id", &pickedStockIDs).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stock IDs", nil)
+	}
+
+	// Get total count of picked stocks
+	var total int64
+	db := database.Database.Db.Model(&models.Stocks{}).
+		Where("id IN ? AND is_deleted = false", pickedStockIDs)
+	db.Count(&total)
+
+	// Fetch paginated picked stocks
+	var stocks []models.Stocks
+	if err := db.Offset(offset).Limit(limit).Order("created_at desc").Find(&stocks).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stocks", nil)
+	}
+
+	// Prepare response
+	response := map[string]interface{}{
+		"stocks": stocks,
+		"pagination": map[string]interface{}{
+			"total": total,
+			"page":  page,
+			"limit": limit,
+		},
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Picked stock list fetched successfully!", response)
 }
