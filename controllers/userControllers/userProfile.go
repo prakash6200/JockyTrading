@@ -458,3 +458,49 @@ func Withdraw(c *fiber.Ctx) error {
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Withdraw Sucess.", nil)
 }
+
+func TransactionList(c *fiber.Ctx) error {
+	// Retrieve userId from JWT middleware
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Retrieve validated request data
+	reqData, ok := c.Locals("validatedTransactionList").(*struct {
+		Page  *int `json:"page"`
+		Limit *int `json:"limit"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	offset := (*reqData.Page - 1) * (*reqData.Limit)
+
+	var transactions []models.Transactions
+	var total int64
+
+	// Fetch loginTraking with pagination
+	if err := database.Database.Db.Where("user_id = ? AND is_deleted = ?", userId, false).
+		Offset(offset).
+		Limit(*reqData.Limit).
+		Find(&transactions).
+		Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Access Denied!", nil)
+	}
+
+	// Count total records
+	database.Database.Db.Model(&models.Transactions{}).Where("user_id = ? AND is_deleted = ?", userId, false).Count(&total)
+
+	// Response structure
+	response := map[string]interface{}{
+		"transactions": transactions,
+		"pagination": map[string]interface{}{
+			"total": total,
+			"page":  *reqData.Page,
+			"limit": *reqData.Limit,
+		},
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Transactions list.", response)
+}
