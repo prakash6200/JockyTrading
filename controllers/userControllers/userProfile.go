@@ -8,6 +8,7 @@ import (
 	"fib/models"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -356,4 +357,28 @@ func PanLinkStatus(c *fiber.Ctx) error {
 
 	// Return a successful response
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Pan Aadhaar Link Status Verified.", nil)
+}
+
+func AddFolioNumber(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	reqData := new(struct {
+		FolioNumber string `json:"folioNumber"`
+	})
+
+	if err := c.BodyParser(reqData); err != nil {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Failed to parse request body!", nil)
+	}
+
+	var user models.User
+	if err := database.Database.Db.First(&user, userId).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	}
+
+	user.FolioNumber = reqData.FolioNumber
+	if err := database.Database.Db.Save(&user).Error; err != nil {
+		log.Printf("Failed to save folio Number: %v", err)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Folio Number added.", nil)
 }

@@ -8,6 +8,7 @@ import (
 
 type User struct {
 	gorm.Model
+	FolioNumber         string     `gorm:"drfault:null"`
 	ProfileImage        string     `gorm:"default:''"`
 	Name                string     `gorm:"default:''"`
 	Email               string     `gorm:"unique;not null"`

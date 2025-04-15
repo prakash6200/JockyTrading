@@ -142,3 +142,31 @@ func VerifyAdharOtp() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func AddFolioNumber() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Parse request body
+		reqData := new(struct {
+			FolioNumber string `json:"folioNumber"`
+		})
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		// Validate Folio number
+		if reqData.FolioNumber == "" {
+			errors["folioNumber"] = "Not found Folio Number"
+		}
+
+		// Respond with errors if any exist
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		// Pass Validated Folio Number to the next middleware
+		c.Locals("validatedFolioNumber", reqData)
+		return c.Next()
+	}
+}
