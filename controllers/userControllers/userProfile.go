@@ -382,3 +382,39 @@ func AddFolioNumber(c *fiber.Ctx) error {
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Folio Number added.", nil)
 }
+
+func Deposit(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	reqData := new(struct {
+		Amount uint `json:"amount"`
+	})
+
+	if err := c.BodyParser(reqData); err != nil {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Failed to parse request body!", nil)
+	}
+
+	var user models.User
+	if err := database.Database.Db.First(&user, userId).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	}
+
+	user.MainBalance += reqData.Amount
+	if err := database.Database.Db.Save(&user).Error; err != nil {
+		log.Printf("Failed to Add Main Balance: %v", err)
+	}
+
+	newTransactionDetails := models.Transactions{
+		TransactionType: "DEPOSIT",
+		Amount:          reqData.Amount,
+		Status:          "COMPLETED",
+		UserID:          userId,
+	}
+
+	// Save the new bank account to the database
+	if err := database.Database.Db.Create(&newTransactionDetails).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to Create Transaction record!", nil)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Deposite Sucess.", nil)
+}

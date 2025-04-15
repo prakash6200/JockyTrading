@@ -16,4 +16,5 @@ func SetupUserRoutes(app *fiber.App) {
 	userGroup.Post("/verify/adhar/otp", userPorfileValidator.VerifyAdharOtp(), middleware.JWTMiddleware, userProfileController.VerifyAdharOtp)
 	userGroup.Post("/pan/adhar/link/status", userProfileController.PanLinkStatus)
 	userGroup.Post("/add/folio/number", userPorfileValidator.AddFolioNumber(), middleware.JWTMiddleware, userProfileController.AddFolioNumber)
+	userGroup.Post("/deposit/amount", userPorfileValidator.Deposit(), middleware.JWTMiddleware, userProfileController.Deposit)
 }

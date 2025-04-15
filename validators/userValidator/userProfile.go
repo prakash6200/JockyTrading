@@ -170,3 +170,31 @@ func AddFolioNumber() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func Deposit() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Parse request body
+		reqData := new(struct {
+			Amount uint `json:"amount"`
+		})
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		// Validate Amount
+		if reqData.Amount <= 0 {
+			errors["amount"] = "Amount can't be zero !"
+		}
+
+		// Respond with errors if any exist
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		// Pass validated Amount to the next middleware
+		c.Locals("validatedAmount", reqData)
+		return c.Next()
+	}
+}
