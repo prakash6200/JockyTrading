@@ -41,6 +41,7 @@ func main() {
 	userProfileRoutes.SetupUserRoutes(app)
 	superAdminRoutes.SetupSuperAdminRoutes(app)
 	amcRoutes.SetupAMCRoutes(app)
+	amcRoutes.AMCProfileRoutes(app)
 
 	startCron()
 	log.Printf("Server is running on port %s", config.AppConfig.Port)
