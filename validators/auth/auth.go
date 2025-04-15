@@ -2,10 +2,9 @@ package authValidator
 
 import (
 	"fib/middleware"
+	"github.com/gofiber/fiber/v2"
 	"regexp"
 	"strings"
-
-	"github.com/gofiber/fiber/v2"
 )
 
 // Helper to validate email format
