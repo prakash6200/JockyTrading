@@ -2,10 +2,12 @@ package amcController
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fib/config"
 	"fib/database"
 	"fib/middleware"
 	"fib/models"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -234,4 +236,189 @@ func StockPickedByAMCList(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Picked stock list fetched successfully!", response)
+}
+
+func AmcPerformance(c *fiber.Ctx) error {
+	// Retrieve userId from JWT token
+	userId := c.Locals("userId").(uint)
+
+	// Validate AMC user
+	var user models.User
+	if err := database.Database.Db.
+		Where("id = ? AND is_deleted = false AND role = ?", userId, "AMC").
+		First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	// Get validated pagination request
+	reqData, ok := c.Locals("validatedStockList").(*struct {
+		Page  *int `json:"page"`
+		Limit *int `json:"limit"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	// Set default pagination
+	page := 1
+	limit := 10
+	if reqData.Page != nil {
+		page = *reqData.Page
+	}
+	if reqData.Limit != nil {
+		limit = *reqData.Limit
+	}
+	offset := (page - 1) * limit
+
+	// Fetch picked stock IDs
+	var pickedStockIDs []uint
+	if err := database.Database.Db.
+		Model(&models.AmcStocks{}).
+		Where("user_id = ? AND is_deleted = false", userId).
+		Pluck("stock_id", &pickedStockIDs).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stock IDs", nil)
+	}
+
+	// Get total count of picked stocks
+	var total int64
+	db := database.Database.Db.Model(&models.Stocks{}).
+		Where("id IN ? AND is_deleted = false", pickedStockIDs)
+	db.Count(&total)
+
+	// Fetch paginated picked stocks
+	var stocks []models.Stocks
+	if err := db.Offset(offset).Limit(limit).Order("created_at desc").Find(&stocks).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stocks", nil)
+	}
+
+	// Fetch performance data for each stock
+	type Performance struct {
+		StockID       uint    `json:"stockId"`
+		Symbol        string  `json:"symbol"`
+		Name          string  `json:"name"`
+		ClosingPrice  float64 `json:"closingPrice"`
+		PercentChange float64 `json:"percentChange"`
+	}
+
+	var performances []Performance
+	for _, stock := range stocks {
+		// Fetch daily time series from Alpha Vantage
+		url := fmt.Sprintf(
+			"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s",
+			stock.Symbol, config.AppConfig.AlphaVantageApiKey,
+		)
+
+		res, err := http.Get(url)
+		if err != nil {
+			log.Printf("Failed to fetch performance for %s: %v", stock.Symbol, err)
+			continue
+		}
+		defer res.Body.Close()
+
+		if res.StatusCode != http.StatusOK {
+			log.Printf("Non-200 status for %s: %d", stock.Symbol, res.StatusCode)
+			continue
+		}
+
+		// Parse API response
+		var data map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+			log.Printf("Failed to parse JSON for %s: %v", stock.Symbol, err)
+			continue
+		}
+
+		// Check for API errors (e.g., rate limit)
+		if _, ok := data["Error Message"]; ok {
+			log.Printf("API error for %s: %v", stock.Symbol, data["Error Message"])
+			continue
+		}
+
+		// Extract daily time series
+		timeSeries, ok := data["Time Series (Daily)"].(map[string]interface{})
+		if !ok {
+			log.Printf("Invalid time series data for %s", stock.Symbol)
+			continue
+		}
+
+		// Get the latest and previous day's data
+		var latestDate, prevDate string
+		for date := range timeSeries {
+			if latestDate == "" || date > latestDate {
+				prevDate = latestDate
+				latestDate = date
+			} else if prevDate == "" || date > prevDate {
+				prevDate = date
+			}
+		}
+
+		if latestDate == "" || prevDate == "" {
+			log.Printf("Insufficient data for %s", stock.Symbol)
+			continue
+		}
+
+		latestData, ok := timeSeries[latestDate].(map[string]interface{})
+		if !ok {
+			log.Printf("Invalid latest data for %s", stock.Symbol)
+			continue
+		}
+		prevData, ok := timeSeries[prevDate].(map[string]interface{})
+		if !ok {
+			log.Printf("Invalid previous data for %s", stock.Symbol)
+			continue
+		}
+
+		// Extract closing prices
+		latestClose, ok := latestData["4. close"].(string)
+		if !ok {
+			log.Printf("Invalid closing price for %s", stock.Symbol)
+			continue
+		}
+		previousClose, ok := prevData["4. close"].(string)
+		if !ok {
+			log.Printf("Invalid previous closing price for %s", stock.Symbol)
+			continue
+		}
+
+		// Convert to float
+		latestCloseVal, err := parseFloat(latestClose)
+		if err != nil {
+			log.Printf("Failed to parse latest close for %s: %v", stock.Symbol, err)
+			continue
+		}
+		previousCloseVal, err := parseFloat(previousClose)
+		if err != nil {
+			log.Printf("Failed to parse previous close for %s: %v", stock.Symbol, err)
+			continue
+		}
+
+		// Calculate percentage change
+		percentChange := ((latestCloseVal - previousCloseVal) / previousCloseVal) * 100
+
+		// Append performance data
+		performances = append(performances, Performance{
+			StockID:       stock.ID,
+			Symbol:        stock.Symbol,
+			Name:          stock.Name,
+			ClosingPrice:  latestCloseVal,
+			PercentChange: percentChange,
+		})
+	}
+
+	// Prepare response
+	response := map[string]interface{}{
+		"performances": performances,
+		"pagination": map[string]interface{}{
+			"total": total,
+			"page":  page,
+			"limit": limit,
+		},
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC stock performance fetched successfully!", response)
+}
+
+func parseFloat(s string) (float64, error) {
+	var f float64
+	_, err := fmt.Sscanf(s, "%f", &f)
+	return f, err
 }
