@@ -209,7 +209,7 @@ func LoginHistoryList(c *fiber.Ctx) error {
 		Limit(*reqData.Limit).
 		Find(&loginTraking).
 		Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch robots!", nil)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Access Denied!", nil)
 	}
 
 	// Count total records

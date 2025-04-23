@@ -142,3 +142,129 @@ func VerifyAdharOtp() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func AddFolioNumber() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Parse request body
+		reqData := new(struct {
+			FolioNumber string `json:"folioNumber"`
+		})
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		// Validate Folio number
+		if reqData.FolioNumber == "" {
+			errors["folioNumber"] = "Not found Folio Number"
+		}
+
+		// Respond with errors if any exist
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		// Pass Validated Folio Number to the next middleware
+		c.Locals("validatedFolioNumber", reqData)
+		return c.Next()
+	}
+}
+
+func Deposit() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Parse request body
+		reqData := new(struct {
+			Amount uint `json:"amount"`
+		})
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		// Validate Amount
+		if reqData.Amount <= 0 {
+			errors["amount"] = "Amount can't be zero !"
+		}
+
+		// Respond with errors if any exist
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		// Pass validated Amount to the next middleware
+		c.Locals("validatedAmount", reqData)
+		return c.Next()
+	}
+}
+
+func Withdraw() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Parse request body
+		reqData := new(struct {
+			Amount uint `json:"amount"`
+		})
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		// Validate Amount
+		if reqData.Amount <= 0 {
+			errors["amount"] = "Amount can't be zero !"
+		}
+
+		// Respond with errors if any exist
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		// Pass validated Amount to the next middleware
+		c.Locals("validatedAmount", reqData)
+		return c.Next()
+	}
+}
+
+func TransactionList() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			Page  *int `json:"page"`
+			Limit *int `json:"limit"`
+		})
+
+		if err := c.QueryParser(reqData); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Invalid request query!",
+				"errors":  nil,
+			})
+		}
+
+		errors := make(map[string]string)
+
+		// Validate Page
+		if reqData.Page == nil || *reqData.Page < 1 {
+			errors["page"] = "Page must be greater than 0!"
+		}
+
+		// Validate Limit
+		if reqData.Limit == nil || *reqData.Limit < 1 {
+			errors["limit"] = "Limit must be greater than 0!"
+		}
+
+		// Return validation errors
+		if len(errors) > 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Validation failed!",
+				"errors":  errors,
+			})
+		}
+
+		// ✅ Set correct key to match the controller
+		c.Locals("validatedTransactionList", reqData)
+		return c.Next()
+	}
+}

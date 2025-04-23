@@ -8,6 +8,7 @@ import (
 
 type User struct {
 	gorm.Model
+	FolioNumber         string     `gorm:"drfault:null"`
 	ProfileImage        string     `gorm:"default:''"`
 	Name                string     `gorm:"default:''"`
 	Email               string     `gorm:"unique;not null"`
@@ -18,6 +19,7 @@ type User struct {
 	UserKYC             uint       `gorm:"foreignKey:KycID"`  // Corrected foreign key reference
 	IsMobileVerified    bool       `gorm:"default:false"`
 	IsEmailVerified     bool       `gorm:"default:false"`
+	MainBalance         uint       `gorm:"default:0"`
 	LastLogin           time.Time  `gorm:"default:NULL"`
 	FailedLoginAttempts int        `gorm:"default:0"`
 	LastFailedLogin     *time.Time `json:"last_failed_login"`
