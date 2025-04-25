@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 func AddBankAccount(c *fiber.Ctx) error {
@@ -210,177 +211,526 @@ func SendAdharOtp(c *fiber.Ctx) error {
 	})
 }
 
+type AadhaarOKYCResponse struct {
+	Code          int    `json:"code"`
+	Timestamp     int64  `json:"timestamp"`
+	TransactionID string `json:"transaction_id"`
+	Data          struct {
+		Entity      string      `json:"@entity"`
+		ReferenceID interface{} `json:"reference_id"`
+		Status      string      `json:"status"`
+		Message     string      `json:"message"`
+		CareOf      string      `json:"care_of"`
+		FullAddress string      `json:"full_address"`
+		DateOfBirth string      `json:"date_of_birth"`
+		EmailHash   string      `json:"email_hash"`
+		Gender      string      `json:"gender"`
+		Name        string      `json:"name"`
+		Address     struct {
+			Entity      string      `json:"@entity"`
+			Country     string      `json:"country"`
+			District    string      `json:"district"`
+			House       string      `json:"house"`
+			Landmark    string      `json:"landmark"`
+			Pincode     interface{} `json:"pincode"`
+			PostOffice  string      `json:"post_office"`
+			State       string      `json:"state"`
+			Street      string      `json:"street"`
+			Subdistrict string      `json:"subdistrict"`
+			Vtc         string      `json:"vtc"`
+		} `json:"address"`
+		YearOfBirth interface{} `json:"year_of_birth"`
+		MobileHash  string      `json:"mobile_hash"`
+		Photo       string      `json:"photo"`
+		ShareCode   string      `json:"share_code"`
+	} `json:"data"`
+}
+
 func VerifyAdharOtp(c *fiber.Ctx) error {
+	// Extract user ID from context
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid user ID!", nil)
+	}
+
 	// Parse request body
 	reqData := new(struct {
-		ReferenceID string `json:"referenceId"`
-		Otp         string `json:"otp"`
+		AadharNumber string `json:"aadharNumber"`
+		ReferenceID  string `json:"referenceId"`
+		Otp          string `json:"otp"`
 	})
 	if err := c.BodyParser(reqData); err != nil {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
 	}
 
-	// Construct API URL
-	url := config.AppConfig.SandboxApiURL + "kyc/aadhaar/okyc/otp/verify"
+	// Validate request fields
+	if reqData.AadharNumber == "" || reqData.ReferenceID == "" || reqData.Otp == "" {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Missing required fields!", nil)
+	}
 
-	// Prepare payload
+	// Check if user exists
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", userId, false).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "User not found!", nil)
+	}
+
+	// Prepare API request
+	url := config.AppConfig.SandboxApiURL + "kyc/aadhaar/okyc/otp/verify"
 	payload := fmt.Sprintf(`{
 		"@entity": "in.co.sandbox.kyc.aadhaar.okyc.request",
 		"reference_id": "%s",
 		"otp": "%s"
 	}`, reqData.ReferenceID, reqData.Otp)
 
-	// Send request
 	req, err := http.NewRequest("POST", url, strings.NewReader(payload))
 	if err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to create request!", nil)
 	}
 
-	// Add headers
+	// Set headers as per Sandbox documentation
 	authToken, err := sandboxJwt()
 	if err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to generate auth token!", nil)
 	}
-	req.Header.Add("accept", "application/json")
-	req.Header.Add("authorization", authToken)
-	req.Header.Add("x-api-key", config.AppConfig.SandboxApiKey)
-	req.Header.Add("x-api-version", "2.0")
-	req.Header.Add("content-type", "application/json")
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("authorization", authToken)
+	req.Header.Set("x-api-key", config.AppConfig.SandboxApiKey)
+	req.Header.Set("x-api-version", "2.0")
+	req.Header.Set("content-type", "application/json")
 
-	// Send request
+	// Send API request
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to send request!", nil)
 	}
 	defer res.Body.Close()
 
+	// Read response body
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to read response!", nil)
 	}
 
-	// Check for error status
+	// Check for non-200 status
 	if res.StatusCode != http.StatusOK {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "OTP verification failed: "+string(body), nil)
+		var errorResp struct {
+			Message string `json:"message"`
+			Code    int    `json:"code"`
+		}
+		if err := json.Unmarshal(body, &errorResp); err == nil && errorResp.Message != "" {
+			return middleware.JsonResponse(c, res.StatusCode, false, fmt.Sprintf("OTP verification failed: %s", errorResp.Message), nil)
+		}
+		return middleware.JsonResponse(c, res.StatusCode, false, fmt.Sprintf("OTP verification failed: %s", string(body)), nil)
 	}
 
-	// Parse JSON response
-	var response struct {
-		TransactionID string `json:"transaction_id"`
-		Data          struct {
-			ReferenceID int    `json:"reference_id"`
-			Message     string `json:"message"`
-			Name        string `json:"name"`
-			DateOfBirth string `json:"date_of_birth"`
-			Gender      string `json:"gender"`
-			Address     struct {
-				Country     string `json:"country"`
-				State       string `json:"state"`
-				District    string `json:"district"`
-				Pincode     int    `json:"pincode"`
-				Landmark    string `json:"landmark"`
-				PostOffice  string `json:"post_office"`
-				Subdistrict string `json:"subdistrict"`
-			} `json:"address"`
-			Photo string `json:"photo"`
-		} `json:"data"`
-	}
+	// Parse API response
+	var response AadhaarOKYCResponse
 	if err := json.Unmarshal(body, &response); err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to parse response!", nil)
+		log.Printf("Failed to parse API response: %v, Body: %s", err, string(body))
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to parse API response!", nil)
 	}
 
-	// Print the parsed response for debugging
-	fmt.Println("Parsed Response: ", response)
+	// Validate critical fields with detailed logging
+	var validationErrors []string
+	if response.Data.Name == "" {
+		validationErrors = append(validationErrors, "Name is empty")
+	}
+	if response.Data.DateOfBirth == "" {
+		validationErrors = append(validationErrors, "DateOfBirth is empty")
+	}
+	if !strings.EqualFold(response.Data.Status, "VALID") {
+		validationErrors = append(validationErrors, fmt.Sprintf("Status is invalid: %s", response.Data.Status))
+	}
+	if len(validationErrors) > 0 {
+		log.Printf("Validation failed: %v, Response Data: %+v", validationErrors, response.Data)
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, fmt.Sprintf("Invalid or incomplete Aadhaar data from API: %s", strings.Join(validationErrors, "; ")), nil)
+	}
+
+	// Convert reference_id to string
+	var refID string
+	switch v := response.Data.ReferenceID.(type) {
+	case string:
+		refID = v
+	case float64:
+		refID = fmt.Sprintf("%d", int(v))
+	default:
+		log.Printf("Unexpected reference_id type: %T", v)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Invalid reference_id format!", nil)
+	}
+
+	// Convert pincode to string
+	var pincode string
+	switch v := response.Data.Address.Pincode.(type) {
+	case string:
+		pincode = v
+	case float64:
+		pincode = fmt.Sprintf("%d", int(v))
+	default:
+		pincode = ""
+	}
+
+	// Convert address struct to string
+	addr := response.Data.Address
+	var addressParts []string
+	if addr.House != "" {
+		addressParts = append(addressParts, addr.House)
+	}
+	if addr.Street != "" {
+		addressParts = append(addressParts, addr.Street)
+	}
+	if addr.Landmark != "" {
+		addressParts = append(addressParts, addr.Landmark)
+	}
+	if addr.Vtc != "" {
+		addressParts = append(addressParts, addr.Vtc)
+	}
+	if addr.District != "" {
+		addressParts = append(addressParts, addr.District)
+	}
+	if addr.State != "" {
+		addressParts = append(addressParts, addr.State)
+	}
+	if addr.Country != "" {
+		addressParts = append(addressParts, addr.Country)
+	}
+	if pincode != "" {
+		addressParts = append(addressParts, pincode)
+	}
+	address := strings.Join(addressParts, ", ")
+
+	// Prepare AadharDetails
+	aadhar := models.AadharDetails{
+		AadharNumber: reqData.AadharNumber,
+		Name:         response.Data.Name,
+		DOB:          response.Data.DateOfBirth,
+		Address:      address,
+		ProfileImage: response.Data.Photo,
+		RefID:        refID,
+		IsVerified:   true,
+	}
+
+	// Save AadharDetails
+	if err := database.Database.Db.Create(&aadhar).Error; err != nil {
+		if strings.Contains(err.Error(), "duplicate key") {
+			return middleware.JsonResponse(c, fiber.StatusConflict, false, "Aadhaar number already exists!", nil)
+		}
+		log.Printf("Failed to save AadharDetails: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to save Aadhaar details!", nil)
+	}
+
+	// Handle UserKYC: create or update
+	var userKYC models.UserKYC
+	if err := database.Database.Db.Where("user_id = ?", userId).First(&userKYC).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// Create new UserKYC, omitting PanID to allow NULL
+			userKYC = models.UserKYC{
+				UserID:     userId,
+				AdharID:    aadhar.ID,
+				IsVerified: true,
+				IsDeleted:  false,
+				// PanID is not set, allowing it to default to NULL in the database
+			}
+			if err := database.Database.Db.Omit("PanID").Create(&userKYC).Error; err != nil {
+				log.Printf("Failed to create UserKYC: %v", err)
+				return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to create UserKYC record!", nil)
+			}
+		} else {
+			log.Printf("Database error: %v", err)
+			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Database error!", nil)
+		}
+	} else {
+		// Update existing UserKYC
+		userKYC.AdharID = aadhar.ID
+		userKYC.IsVerified = true
+		// Leave PanID unchanged to avoid constraint violation
+		if err := database.Database.Db.Omit("PanID").Save(&userKYC).Error; err != nil {
+			log.Printf("Failed to update UserKYC: %v", err)
+			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update UserKYC record!", nil)
+		}
+	}
 
 	// Return success response
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "Aadhaar OTP verified and details saved successfully.", map[string]interface{}{
-		"transaction_id": response.TransactionID,
-		"reference_id":   response.Data.ReferenceID,
-		"message":        response.Data.Message,
-	})
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Aadhaar OTP verified and details saved successfully.", nil)
 }
 
-// PAN-Aadhaar Link Status
 func PanLinkStatus(c *fiber.Ctx) error {
+	// Extract user ID from context
+	userId, ok := c.Locals("userId").(uint)
+	fmt.Print(userId)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid user ID!", nil)
+	}
+
+	// Parse request body
 	reqData := new(struct {
-		AdharNumber string `json:"adharNumber"`
-		PanNumber   string `json:"panNumber"`
+		AadhaarNumber string `json:"aadhaarNumber"`
+		PanNumber     string `json:"panNumber"`
 	})
-
-	// Body parsing
 	if err := c.BodyParser(reqData); err != nil {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Failed to parse request body!", nil)
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
 	}
 
-	// Get authentication token
-	authToken, err := sandboxJwt()
-	if err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Internal Server Error!", nil)
+	// Validate request fields
+	if reqData.AadhaarNumber == "" || reqData.PanNumber == "" {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Missing required fields!", nil)
 	}
 
+	// Check if user exists
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", userId, false).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "User not found!", nil)
+	}
+
+	// Prepare API request
+	url := config.AppConfig.SandboxApiURL + "kyc/pan-aadhaar/status"
 	payload := fmt.Sprintf(`{
 		"@entity": "in.co.sandbox.kyc.pan_aadhaar.status",
 		"pan": "%s",
 		"aadhaar_number": "%s",
 		"consent": "Y",
 		"reason": "Verification"
-	}`, reqData.PanNumber, reqData.AdharNumber)
+	}`, reqData.PanNumber, reqData.AadhaarNumber)
 
-	url := config.AppConfig.SandboxApiURL + "kyc/pan-aadhaar/status"
 	req, err := http.NewRequest("POST", url, strings.NewReader(payload))
 	if err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to create request!", nil)
 	}
 
 	// Set headers
-	req.Header.Add("accept", "application/json")
-	req.Header.Add("authorization", authToken)
-	req.Header.Add("x-api-key", config.AppConfig.SandboxApiKey)
-	req.Header.Add("x-api-version", "2.0")
-	req.Header.Add("content-type", "application/json")
+	authToken, err := sandboxJwt()
+	if err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to generate auth token!", nil)
+	}
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("authorization", authToken)
+	req.Header.Set("x-api-key", config.AppConfig.SandboxApiKey)
+	req.Header.Set("x-api-version", "2.0")
+	req.Header.Set("content-type", "application/json")
 
-	// Make the HTTP request
+	// Send API request
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to execute request!", nil)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to send request!", nil)
 	}
 	defer res.Body.Close()
 
-	// Read the response body
+	// Read response body
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to read response body!", nil)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to read response!", nil)
 	}
 
-	// Log the response for debugging purposes
-	fmt.Println(string(body))
+	// Check for non-200 status
+	if res.StatusCode != http.StatusOK {
+		var errorResp struct {
+			Message string `json:"message"`
+			Code    int    `json:"code"`
+		}
+		if err := json.Unmarshal(body, &errorResp); err == nil && errorResp.Message != "" {
+			return middleware.JsonResponse(c, res.StatusCode, false, fmt.Sprintf("PAN-Aadhaar status check failed: %s", errorResp.Message), nil)
+		}
+		return middleware.JsonResponse(c, res.StatusCode, false, fmt.Sprintf("PAN-Aadhaar status check failed: %s", string(body)), nil)
+	}
 
-	// Return a successful response
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "Pan Aadhaar Link Status Verified.", nil)
+	// Parse API response
+	type PanAadhaarStatusResponse struct {
+		Status     bool   `json:"status"`
+		Message    string `json:"message"`
+		IsLinked   bool   `json:"is_linked"`
+		LinkedDate string `json:"linked_date,omitempty"`
+	}
+	var apiResponse PanAadhaarStatusResponse
+	if err := json.Unmarshal(body, &apiResponse); err != nil {
+		log.Printf("Failed to parse API response: %v, Body: %s", err, string(body))
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to parse API response!", nil)
+	}
+
+	// Validate critical fields
+	// var validationErrors []string
+	// if apiResponse.Message == "" {
+	// 	validationErrors = append(validationErrors, "Message is empty")
+	// }
+	// if !apiResponse.Status {
+	// 	validationErrors = append(validationErrors, "API status is false")
+	// }
+	// if len(validationErrors) > 0 {
+	// 	log.Printf("Validation failed: %v, Response Data: %+v", validationErrors, apiResponse)
+	// 	return middleware.JsonResponse(c, fiber.StatusBadRequest, false, fmt.Sprintf("Invalid or incomplete API response: %s", strings.Join(validationErrors, "; ")), nil)
+	// }
+
+	// Use a transaction to ensure atomicity
+	err = database.Database.Db.Transaction(func(tx *gorm.DB) error {
+		// Prepare AadharDetails
+		aadhar := models.AadharDetails{
+			AadharNumber: reqData.AadhaarNumber,
+			IsVerified:   apiResponse.IsLinked, // Set based on link status
+		}
+		// Save or update AadharDetails
+		if err := tx.Where("aadhar_number = ?", reqData.AadhaarNumber).FirstOrCreate(&aadhar).Error; err != nil {
+			log.Printf("Failed to save AadharDetails: %v", err)
+			return err
+		}
+
+		// Prepare PanDetails
+		pan := models.PanDetails{
+			PanNumber:  reqData.PanNumber,
+			IsVerified: apiResponse.IsLinked,
+		}
+		// Save or update PanDetails
+		if err := tx.Where("pan_number = ?", reqData.PanNumber).FirstOrCreate(&pan).Error; err != nil {
+			log.Printf("Failed to save PanDetails: %v", err)
+			return err
+		}
+
+		// Handle UserKYC: create or update
+		var userKYC models.UserKYC
+		if err := tx.Where("user_id = ?", userId).First(&userKYC).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				// Create new UserKYC
+				userKYC = models.UserKYC{
+					UserID:     userId,
+					AdharID:    aadhar.ID,
+					PanID:      pan.ID,
+					IsVerified: apiResponse.IsLinked,
+					IsDeleted:  false,
+				}
+				if err := tx.Create(&userKYC).Error; err != nil {
+					log.Printf("Failed to create UserKYC: %v", err)
+					return err
+				}
+			} else {
+				log.Printf("Database error: %v", err)
+				return err
+			}
+		} else {
+			// Update existing UserKYC
+			userKYC.AdharID = aadhar.ID
+			userKYC.PanID = pan.ID
+			userKYC.IsVerified = apiResponse.IsLinked
+			if err := tx.Save(&userKYC).Error; err != nil {
+				log.Printf("Failed to update UserKYC: %v", err)
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") {
+			return middleware.JsonResponse(c, fiber.StatusConflict, false, "Aadhaar or PAN number already exists!", nil)
+		}
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to save KYC details!", nil)
+	}
+
+	// Return success response
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "PAN-Aadhaar link status verified and details saved successfully.", apiResponse)
 }
 
 func AddFolioNumber(c *fiber.Ctx) error {
 	userId := c.Locals("userId").(uint)
 
-	reqData := new(struct {
+	reqData, ok := c.Locals("validatedFolioNumber").(*struct {
 		FolioNumber string `json:"folioNumber"`
 	})
-
-	if err := c.BodyParser(reqData); err != nil {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Failed to parse request body!", nil)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid folio number data!", nil)
 	}
 
+	// Check if user exists
 	var user models.User
 	if err := database.Database.Db.First(&user, userId).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
 	}
 
-	user.FolioNumber = reqData.FolioNumber
-	if err := database.Database.Db.Save(&user).Error; err != nil {
-		log.Printf("Failed to save folio Number: %v", err)
+	var existingFolio models.Folio
+	if err := database.Database.Db.
+		Where("user_id = ? AND folio_no = ? AND is_deleted = ?", userId, reqData.FolioNumber, false).
+		First(&existingFolio).Error; err == nil {
+		// Folio number already exists
+		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Folio number already exists!", nil)
+	} else if err != gorm.ErrRecordNotFound {
+		// Handle unexpected database errors
+		log.Printf("Failed to check existing folio number: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to check folio number!", nil)
+	}
+
+	// Create a new folio entry
+	folio := models.Folio{
+		UserID:    userId,
+		FolioNo:   reqData.FolioNumber,
+		IsDeleted: false,
+	}
+
+	if err := database.Database.Db.Create(&folio).Error; err != nil {
+		log.Printf("Failed to save folio number: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to save folio number!", nil)
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Folio Number added.", nil)
+}
+
+func FolioNoList(c *fiber.Ctx) error {
+	// Retrieve userId from JWT middleware
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Retrieve validated request data
+	reqData, ok := c.Locals("validatedFolioList").(*struct {
+		Page  *int `json:"page"`
+		Limit *int `json:"limit"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	// Calculate offset
+	offset := (*reqData.Page - 1) * (*reqData.Limit)
+
+	// Check if user exists
+	var user models.User
+	if err := database.Database.Db.First(&user, userId).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	}
+
+	// Fetch folio numbers with pagination
+	var folios []models.Folio
+	var total int64
+
+	if err := database.Database.Db.
+		Where("user_id = ? AND is_deleted = ?", userId, false).
+		Offset(offset).
+		Limit(*reqData.Limit).
+		Find(&folios).
+		Error; err != nil {
+		log.Printf("Failed to fetch folio numbers: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch folio numbers!", nil)
+	}
+
+	// Count total records
+	database.Database.Db.Model(&models.Folio{}).
+		Where("user_id = ? AND is_deleted = ?", userId, false).
+		Count(&total)
+
+	// Prepare response data (only include FolioNo)
+	folioNumbers := make([]string, len(folios))
+	for i, folio := range folios {
+		folioNumbers[i] = folio.FolioNo
+	}
+
+	// Response structure
+	response := map[string]interface{}{
+		"folioNumbers": folioNumbers,
+		"pagination": map[string]interface{}{
+			"total": total,
+			"page":  *reqData.Page,
+			"limit": *reqData.Limit,
+		},
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Folio numbers retrieved.", response)
 }
 
 func Deposit(c *fiber.Ctx) error {

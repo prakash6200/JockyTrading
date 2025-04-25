@@ -50,7 +50,7 @@ func main() {
 }
 
 func startCron() {
-	stockCronController.FetchAndStoreStocks()
+	// stockCronController.FetchAndStoreStocks()
 	c := cron.New()
 	c.AddFunc("0 6 * * *", func() {
 		log.Println("Running daily stock sync cron job...")

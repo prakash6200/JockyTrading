@@ -77,6 +77,7 @@ func runMigrations(db *gorm.DB) {
 		&models.AMCProfile{},
 		&models.AMCPredictionValue{},
 		&models.Transactions{},
+		&models.Folio{},
 	)
 	if err != nil {
 		log.Fatalf("Migration failed: %v", err)
