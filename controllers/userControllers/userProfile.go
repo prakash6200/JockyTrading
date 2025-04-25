@@ -630,25 +630,107 @@ func PanLinkStatus(c *fiber.Ctx) error {
 func AddFolioNumber(c *fiber.Ctx) error {
 	userId := c.Locals("userId").(uint)
 
-	reqData := new(struct {
+	reqData, ok := c.Locals("validatedFolioNumber").(*struct {
 		FolioNumber string `json:"folioNumber"`
 	})
-
-	if err := c.BodyParser(reqData); err != nil {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Failed to parse request body!", nil)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid folio number data!", nil)
 	}
 
+	// Check if user exists
 	var user models.User
 	if err := database.Database.Db.First(&user, userId).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
 	}
 
-	user.FolioNumber = reqData.FolioNumber
-	if err := database.Database.Db.Save(&user).Error; err != nil {
-		log.Printf("Failed to save folio Number: %v", err)
+	var existingFolio models.Folio
+	if err := database.Database.Db.
+		Where("user_id = ? AND folio_no = ? AND is_deleted = ?", userId, reqData.FolioNumber, false).
+		First(&existingFolio).Error; err == nil {
+		// Folio number already exists
+		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Folio number already exists!", nil)
+	} else if err != gorm.ErrRecordNotFound {
+		// Handle unexpected database errors
+		log.Printf("Failed to check existing folio number: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to check folio number!", nil)
+	}
+
+	// Create a new folio entry
+	folio := models.Folio{
+		UserID:    userId,
+		FolioNo:   reqData.FolioNumber,
+		IsDeleted: false,
+	}
+
+	if err := database.Database.Db.Create(&folio).Error; err != nil {
+		log.Printf("Failed to save folio number: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to save folio number!", nil)
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Folio Number added.", nil)
+}
+
+func FolioNoList(c *fiber.Ctx) error {
+	// Retrieve userId from JWT middleware
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Retrieve validated request data
+	reqData, ok := c.Locals("validatedFolioList").(*struct {
+		Page  *int `json:"page"`
+		Limit *int `json:"limit"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	// Calculate offset
+	offset := (*reqData.Page - 1) * (*reqData.Limit)
+
+	// Check if user exists
+	var user models.User
+	if err := database.Database.Db.First(&user, userId).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	}
+
+	// Fetch folio numbers with pagination
+	var folios []models.Folio
+	var total int64
+
+	if err := database.Database.Db.
+		Where("user_id = ? AND is_deleted = ?", userId, false).
+		Offset(offset).
+		Limit(*reqData.Limit).
+		Find(&folios).
+		Error; err != nil {
+		log.Printf("Failed to fetch folio numbers: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch folio numbers!", nil)
+	}
+
+	// Count total records
+	database.Database.Db.Model(&models.Folio{}).
+		Where("user_id = ? AND is_deleted = ?", userId, false).
+		Count(&total)
+
+	// Prepare response data (only include FolioNo)
+	folioNumbers := make([]string, len(folios))
+	for i, folio := range folios {
+		folioNumbers[i] = folio.FolioNo
+	}
+
+	// Response structure
+	response := map[string]interface{}{
+		"folioNumbers": folioNumbers,
+		"pagination": map[string]interface{}{
+			"total": total,
+			"page":  *reqData.Page,
+			"limit": *reqData.Limit,
+		},
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Folio numbers retrieved.", response)
 }
 
 func Deposit(c *fiber.Ctx) error {

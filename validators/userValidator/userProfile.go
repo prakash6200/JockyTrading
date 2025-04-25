@@ -171,6 +171,48 @@ func AddFolioNumber() fiber.Handler {
 	}
 }
 
+func FolioNoList() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			Page  *int `json:"page"`
+			Limit *int `json:"limit"`
+		})
+
+		if err := c.QueryParser(reqData); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Invalid request query!",
+				"errors":  nil,
+			})
+		}
+
+		errors := make(map[string]string)
+
+		// Validate Page
+		if reqData.Page == nil || *reqData.Page < 1 {
+			errors["page"] = "Page must be greater than 0!"
+		}
+
+		// Validate Limit
+		if reqData.Limit == nil || *reqData.Limit < 1 {
+			errors["limit"] = "Limit must be greater than 0!"
+		}
+
+		// Return validation errors
+		if len(errors) > 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Validation failed!",
+				"errors":  errors,
+			})
+		}
+
+		// ✅ Set correct key to match the controller
+		c.Locals("validatedFolioList", reqData)
+		return c.Next()
+	}
+}
+
 func Deposit() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Parse request body
