@@ -355,6 +355,7 @@ func VerifyOTP(c *fiber.Ctx) error {
 	// Update user's verification status based on email or mobile
 	if reqData.Email != "" {
 		user.IsEmailVerified = true
+		user.IsMobileVerified = true
 	} else {
 		user.IsMobileVerified = true
 	}

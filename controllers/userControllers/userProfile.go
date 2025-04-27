@@ -10,49 +10,130 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
-func AddBankAccount(c *fiber.Ctx) error {
-	// Retrieve the userId from the JWT token (added by JWTMiddleware)
-	userId := c.Locals("userId").(uint)
+type BankVerifyResponse struct {
+	Code          int    `json:"code"`
+	Timestamp     int64  `json:"timestamp"`
+	TransactionID string `json:"transaction_id"`
+	Data          struct {
+		Entity          string `json:"@entity"`
+		Message         string `json:"message"`
+		AccountExists   bool   `json:"account_exists"`
+		NameAtBank      string `json:"name_at_bank"`
+		Utr             string `json:"utr"`
+		AmountDeposited string `json:"amount_deposited"`
+	} `json:"data"`
+}
 
-	// Parse the request body to get the bank details
+func VerifyBankDetails(accountNo, ifscCode, holderName, mobile string) (bool, error) {
+	// 1. Get token
+	authToken, err := sandboxJwt()
+	if err != nil {
+		return false, fmt.Errorf("failed to get auth token: %v", err)
+	}
+
+	// 2. Prepare URL
+	endpoint := fmt.Sprintf(
+		"%sbank/%s/accounts/%s/verify?name=%s&mobile=%s",
+		config.AppConfig.SandboxApiURL,
+		ifscCode,
+		accountNo,
+		url.QueryEscape(holderName),
+		url.QueryEscape(mobile),
+	)
+
+	// 3. Make HTTP request
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Authorization", authToken)
+	req.Header.Set("x-api-key", config.AppConfig.SandboxApiKey)
+	req.Header.Set("x-api-version", "2.0")
+	req.Header.Set("x-accept-cache", "true")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 4. Read Response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	// 5. Parse JSON
+	var verifyResp BankVerifyResponse
+	err = json.Unmarshal(body, &verifyResp)
+	if err != nil {
+		return false, fmt.Errorf("failed to unmarshal response: %v", err)
+	}
+
+	// 6. Check if verification was successful
+	if verifyResp.Code == 200 && verifyResp.Data.AccountExists {
+		return true, nil
+	}
+
+	return false, fmt.Errorf("bank verification failed: %s", verifyResp.Data.Message)
+}
+
+func AddBankAccount(c *fiber.Ctx) error {
+	// Retrieve userId from JWT token
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid user ID!", nil)
+	}
+
+	// Parse the request body
 	reqData := new(struct {
 		BankName    string `json:"bankName"`
 		AccountNo   string `json:"accountNo"`
 		HolderName  string `json:"holderName"`
 		IFSCCode    string `json:"ifscCode"`
 		BranchName  string `json:"branchName"`
-		AccountType string `json:"accountType"` // Optional, default to "savings"
+		AccountType string `json:"accountType"` // optional
+		Mobile      string `json:"mobile"`
 	})
-
 	if err := c.BodyParser(reqData); err != nil {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Failed to parse request body!", nil)
 	}
 
+	// Check if user exists
 	var user models.User
 	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", userId, false).First(&user).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Access Denied!", nil)
 	}
 
-	// Check if the user already has a bank account
+	// Check if user already has bank details linked
 	if user.BankDetails != 0 {
 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "You already have a bank account!", nil)
 	}
 
-	// Check if the bank account already exists
+	// Check if the bank account already exists in DB
 	var existingBankDetails models.BankDetails
-	result := database.Database.Db.Where("account_no = ?", reqData.AccountNo).First(&existingBankDetails)
-
-	if result.RowsAffected > 0 {
+	if err := database.Database.Db.Where("account_no = ?", reqData.AccountNo).First(&existingBankDetails).Error; err == nil {
 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Bank account already exists!", nil)
 	}
 
-	// Create a new BankDetails object
+	// Sandbox API call - Verify bank details (new way)
+	isVerified, err := VerifyBankDetails(reqData.AccountNo, reqData.IFSCCode, reqData.HolderName, reqData.Mobile)
+	if err != nil {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Bank verification failed: "+err.Error(), nil)
+	}
+
+	// Prepare BankDetails record
+	now := time.Now()
 	newBankDetails := models.BankDetails{
 		BankName:    reqData.BankName,
 		AccountNo:   reqData.AccountNo,
@@ -61,22 +142,23 @@ func AddBankAccount(c *fiber.Ctx) error {
 		BranchName:  reqData.BranchName,
 		AccountType: reqData.AccountType,
 		UserID:      userId,
+		IsVerified:  isVerified,
+	}
+	if isVerified {
+		newBankDetails.VerifiedAt = &now
 	}
 
-	// Save the new bank account to the database
+	// Save new bank details
 	if err := database.Database.Db.Create(&newBankDetails).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to add bank account!", nil)
 	}
 
-	// If user exists, update their bank details field with the new bank account ID
+	// Update user table with BankDetails ID
 	user.BankDetails = newBankDetails.ID
-
-	// Save the updated user with the new bank details
 	if err := database.Database.Db.Save(&user).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update user with bank details!", nil)
 	}
 
-	// Respond with success message
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Bank account added successfully.", newBankDetails)
 }
 
@@ -167,6 +249,7 @@ func SendAdharOtp(c *fiber.Ctx) error {
 	}
 
 	authToken, err := sandboxJwt()
+
 	if err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to get authentication token!", nil)
 	}

@@ -10,19 +10,22 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
+// SyncStockHandler is called to start the stock sync process.
 func SyncStockHandler(c *fiber.Ctx) error {
 	go FetchAndStoreStocks()
 	return c.JSON(fiber.Map{"message": "Stock sync started"})
 }
 
-// fetch stocks from market
+// FetchAndStoreStocks fetches stocks from AlphaVantage and stores them in the database.
 func FetchAndStoreStocks() {
 	url := "https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=" + config.AppConfig.AlphaVantageApiKey
 
+	// Make the HTTP request to AlphaVantage API
 	res, err := http.Get(url)
 	if err != nil {
 		log.Println("Failed to fetch stock list:", err)
@@ -30,22 +33,43 @@ func FetchAndStoreStocks() {
 	}
 	defer res.Body.Close()
 
+	// Parse the CSV response from AlphaVantage
 	reader := csv.NewReader(res.Body)
 	records, err := reader.ReadAll()
 	if err != nil {
 		log.Println("Failed to parse stock CSV:", err)
 		return
 	}
-
-	for _, row := range records[1:] {
+	fmt.Print(records)
+	// Iterate over the records and store each stock in the database
+	for _, row := range records[1:] { // Skipping header row
 		symbol := row[0]
 		name := row[1]
-		length := len(row)
-		status := row[length-1]
+		sector := row[2]   // Assuming the sector is the third column
+		exchange := row[3] // Assuming exchange is the fourth column (adjust as needed)
+		status := row[len(row)-1]
 
+		fmt.Print(status)
+		// Only process stocks that are marked as "Active"
 		if status == "Active" {
-			stock := models.Stocks{Symbol: symbol, Name: name}
-			database.Database.Db.FirstOrCreate(&stock, models.Stocks{Symbol: symbol})
+			// Check if the stock already exists in the database
+			stock := models.Stocks{Symbol: symbol}
+			result := database.Database.Db.FirstOrCreate(&stock, models.Stocks{Symbol: symbol})
+			if result.Error != nil {
+				log.Printf("Error syncing stock %s: %v", symbol, result.Error)
+				continue
+			}
+
+			// Update the stock details (e.g., Name, Sector, Exchange) if the stock was created
+			stock.Name = name
+			stock.Sector = sector
+			stock.Exchange = exchange
+
+			// Save or update the stock entry
+			result = database.Database.Db.Save(&stock)
+			if result.Error != nil {
+				log.Printf("Error saving stock %s: %v", symbol, result.Error)
+			}
 		}
 	}
 
@@ -476,4 +500,166 @@ func AMCList(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC List.", response)
+}
+
+func SyncStockPrices() {
+	var stocks []models.Stocks
+	if err := database.Database.Db.Where("is_deleted = false").Find(&stocks).Error; err != nil {
+		log.Println("Failed to fetch stocks:", err)
+		return
+	}
+
+	for _, stock := range stocks {
+		url := fmt.Sprintf(
+			"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s",
+			stock.Symbol, config.AppConfig.AlphaVantageApiKey,
+		)
+
+		res, err := http.Get(url)
+		if err != nil {
+			log.Printf("Failed to fetch price for %s: %v", stock.Symbol, err)
+			continue
+		}
+		defer res.Body.Close()
+
+		var data map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
+			log.Printf("Failed to parse JSON for %s: %v", stock.Symbol, err)
+			continue
+		}
+
+		timeSeries, ok := data["Time Series (Daily)"].(map[string]interface{})
+		if !ok {
+			log.Printf("Invalid time series for %s", stock.Symbol)
+			continue
+		}
+
+		var latestDate string
+		for date := range timeSeries {
+			if latestDate == "" || date > latestDate {
+				latestDate = date
+			}
+		}
+
+		if latestDate == "" {
+			log.Printf("No data for %s", stock.Symbol)
+			continue
+		}
+
+		dailyData, _ := timeSeries[latestDate].(map[string]interface{})
+		closeStr, _ := dailyData["4. close"].(string)
+
+		closeVal, err := parseFloat(closeStr)
+		if err != nil {
+			log.Printf("Failed to parse close price for %s: %v", stock.Symbol, err)
+			continue
+		}
+
+		// Save or Update close price
+		price := models.StockPrices{
+			StockID: stock.ID,
+			Date:    latestDate,
+			Close:   closeVal,
+		}
+		database.Database.Db.
+			Where("stock_id = ? AND date = ?", stock.ID, latestDate).
+			Assign(price).
+			FirstOrCreate(&price)
+	}
+
+	log.Println("Stock price sync completed")
+}
+
+func AmcPerformances(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	var user models.User
+	if err := database.Database.Db.
+		Where("id = ? AND is_deleted = false AND role = ?", userId, "AMC").
+		First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	reqData, _ := c.Locals("validatedStockList").(*struct {
+		Page  *int `json:"page"`
+		Limit *int `json:"limit"`
+	})
+
+	page := 1
+	limit := 10
+	if reqData.Page != nil {
+		page = *reqData.Page
+	}
+	if reqData.Limit != nil {
+		limit = *reqData.Limit
+	}
+	offset := (page - 1) * limit
+
+	// Get picked stocks
+	var pickedStockIDs []uint
+	database.Database.Db.
+		Model(&models.AmcStocks{}).
+		Where("user_id = ? AND is_deleted = false", userId).
+		Pluck("stock_id", &pickedStockIDs)
+
+	var stocks []models.Stocks
+	db := database.Database.Db.Model(&models.Stocks{}).
+		Where("id IN ? AND is_deleted = false", pickedStockIDs)
+
+	var total int64
+	db.Count(&total)
+
+	if err := db.Offset(offset).Limit(limit).Order("created_at desc").Find(&stocks).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stocks", nil)
+	}
+
+	// Prepare performances
+	type Performance struct {
+		StockID       uint    `json:"stockId"`
+		Symbol        string  `json:"symbol"`
+		Name          string  `json:"name"`
+		ClosingPrice  float64 `json:"closingPrice"`
+		PercentChange float64 `json:"percentChange"`
+	}
+
+	var performances []Performance
+	today := time.Now().Format("2006-01-02")
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+
+	for _, stock := range stocks {
+		var todayPrice, yesterdayPrice models.StockPrices
+
+		database.Database.Db.
+			Where("stock_id = ? AND date = ?", stock.ID, today).
+			First(&todayPrice)
+
+		database.Database.Db.
+			Where("stock_id = ? AND date = ?", stock.ID, yesterday).
+			First(&yesterdayPrice)
+
+		if todayPrice.ID == 0 || yesterdayPrice.ID == 0 {
+			continue // skip if any missing
+		}
+
+		percentChange := ((todayPrice.Close - yesterdayPrice.Close) / yesterdayPrice.Close) * 100
+
+		performances = append(performances, Performance{
+			StockID:       stock.ID,
+			Symbol:        stock.Symbol,
+			Name:          stock.Name,
+			ClosingPrice:  todayPrice.Close,
+			PercentChange: percentChange,
+		})
+	}
+
+	response := map[string]interface{}{
+		"performances": performances,
+		"pagination": map[string]interface{}{
+			"total": total,
+			"page":  page,
+			"limit": limit,
+		},
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC stock performance fetched successfully!", response)
 }
