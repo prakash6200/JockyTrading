@@ -617,36 +617,33 @@ func PanLinkStatus(c *fiber.Ctx) error {
 
 	// Parse API response
 	type PanAadhaarStatusResponse struct {
-		Status     bool   `json:"status"`
-		Message    string `json:"message"`
-		IsLinked   bool   `json:"is_linked"`
-		LinkedDate string `json:"linked_date,omitempty"`
+		Data struct {
+			Entity               string `json:"@entity"`
+			AadhaarSeedingStatus string `json:"aadhaar_seeding_status"`
+			Message              string `json:"message"`
+		} `json:"data"`
 	}
+
 	var apiResponse PanAadhaarStatusResponse
 	if err := json.Unmarshal(body, &apiResponse); err != nil {
 		log.Printf("Failed to parse API response: %v, Body: %s", err, string(body))
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to parse API response!", nil)
 	}
 
-	// Validate critical fields
-	// var validationErrors []string
-	// if apiResponse.Message == "" {
-	// 	validationErrors = append(validationErrors, "Message is empty")
-	// }
-	// if !apiResponse.Status {
-	// 	validationErrors = append(validationErrors, "API status is false")
-	// }
-	// if len(validationErrors) > 0 {
-	// 	log.Printf("Validation failed: %v, Response Data: %+v", validationErrors, apiResponse)
-	// 	return middleware.JsonResponse(c, fiber.StatusBadRequest, false, fmt.Sprintf("Invalid or incomplete API response: %s", strings.Join(validationErrors, "; ")), nil)
-	// }
+	// Check if message matches the required pattern
+	isLinked := apiResponse.Data.AadhaarSeedingStatus == "y" &&
+		strings.HasPrefix(apiResponse.Data.Message, "Your PAN is linked to Aadhaar Number")
+
+	if !isLinked {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "PAN-Aadhaar link verification failed: Invalid response message!", nil)
+	}
 
 	// Use a transaction to ensure atomicity
 	err = database.Database.Db.Transaction(func(tx *gorm.DB) error {
 		// Prepare AadharDetails
 		aadhar := models.AadharDetails{
 			AadharNumber: reqData.AadhaarNumber,
-			IsVerified:   apiResponse.IsLinked, // Set based on link status
+			IsVerified:   isLinked,
 		}
 		// Save or update AadharDetails
 		if err := tx.Where("aadhar_number = ?", reqData.AadhaarNumber).FirstOrCreate(&aadhar).Error; err != nil {
@@ -657,7 +654,7 @@ func PanLinkStatus(c *fiber.Ctx) error {
 		// Prepare PanDetails
 		pan := models.PanDetails{
 			PanNumber:  reqData.PanNumber,
-			IsVerified: apiResponse.IsLinked,
+			IsVerified: isLinked,
 		}
 		// Save or update PanDetails
 		if err := tx.Where("pan_number = ?", reqData.PanNumber).FirstOrCreate(&pan).Error; err != nil {
@@ -674,7 +671,7 @@ func PanLinkStatus(c *fiber.Ctx) error {
 					UserID:     userId,
 					AdharID:    aadhar.ID,
 					PanID:      pan.ID,
-					IsVerified: apiResponse.IsLinked,
+					IsVerified: isLinked,
 					IsDeleted:  false,
 				}
 				if err := tx.Create(&userKYC).Error; err != nil {
@@ -689,7 +686,7 @@ func PanLinkStatus(c *fiber.Ctx) error {
 			// Update existing UserKYC
 			userKYC.AdharID = aadhar.ID
 			userKYC.PanID = pan.ID
-			userKYC.IsVerified = apiResponse.IsLinked
+			userKYC.IsVerified = isLinked
 			if err := tx.Save(&userKYC).Error; err != nil {
 				log.Printf("Failed to update UserKYC: %v", err)
 				return err
@@ -707,7 +704,14 @@ func PanLinkStatus(c *fiber.Ctx) error {
 	}
 
 	// Return success response
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "PAN-Aadhaar link status verified and details saved successfully.", apiResponse)
+	responseData := struct {
+		IsLinked bool   `json:"is_linked"`
+		Message  string `json:"message"`
+	}{
+		IsLinked: isLinked,
+		Message:  apiResponse.Data.Message,
+	}
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "PAN-Aadhaar link status verified and details saved successfully.", responseData)
 }
 
 func AddFolioNumber(c *fiber.Ctx) error {

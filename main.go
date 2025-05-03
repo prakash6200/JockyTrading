@@ -49,7 +49,7 @@ func main() {
 }
 
 func startCron() {
-	stockCronController.FetchAndStoreStocks()
+	// stockCronController.FetchAndStoreStocks()
 	// stockCronController.SyncStockPrices()
 	c := cron.New()
 	c.AddFunc("0 6 * * *", func() {
