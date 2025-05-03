@@ -218,6 +218,7 @@ func Deposit() fiber.Handler {
 		// Parse request body
 		reqData := new(struct {
 			Amount uint `json:"amount"`
+			AmcId  uint `json:"amcId"`
 		})
 		if err := c.BodyParser(reqData); err != nil {
 			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
@@ -228,6 +229,10 @@ func Deposit() fiber.Handler {
 		// Validate Amount
 		if reqData.Amount <= 0 {
 			errors["amount"] = "Amount can't be zero !"
+		}
+
+		if reqData.AmcId <= 0 {
+			errors["amcId"] = "amcId can't be zero !"
 		}
 
 		// Respond with errors if any exist
@@ -246,6 +251,7 @@ func Withdraw() fiber.Handler {
 		// Parse request body
 		reqData := new(struct {
 			Amount uint `json:"amount"`
+			AmcId  uint `json:"amcId"`
 		})
 		if err := c.BodyParser(reqData); err != nil {
 			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
@@ -256,6 +262,10 @@ func Withdraw() fiber.Handler {
 		// Validate Amount
 		if reqData.Amount <= 0 {
 			errors["amount"] = "Amount can't be zero !"
+		}
+
+		if reqData.AmcId <= 0 {
+			errors["amcId"] = "amcId can't be zero !"
 		}
 
 		// Respond with errors if any exist

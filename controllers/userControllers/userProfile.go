@@ -825,6 +825,7 @@ func Deposit(c *fiber.Ctx) error {
 
 	reqData := new(struct {
 		Amount uint `json:"amount"`
+		AmcId  uint `json:"amcId"`
 	})
 
 	if err := c.BodyParser(reqData); err != nil {
@@ -834,6 +835,11 @@ func Deposit(c *fiber.Ctx) error {
 	var user models.User
 	if err := database.Database.Db.First(&user, userId).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	}
+
+	var amc models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", reqData.AmcId, "AMC").First(&amc).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid AMC!", nil)
 	}
 
 	user.MainBalance += reqData.Amount
@@ -846,6 +852,7 @@ func Deposit(c *fiber.Ctx) error {
 		Amount:          reqData.Amount,
 		Status:          "COMPLETED",
 		UserID:          userId,
+		AmcID:           reqData.AmcId,
 	}
 
 	// Save the new bank account to the database
@@ -853,7 +860,7 @@ func Deposit(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to Create Transaction record!", nil)
 	}
 
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "Deposite Sucess.", nil)
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Deposite Sucess.", newTransactionDetails)
 }
 
 func Withdraw(c *fiber.Ctx) error {
@@ -861,6 +868,7 @@ func Withdraw(c *fiber.Ctx) error {
 
 	reqData := new(struct {
 		Amount uint `json:"amount"`
+		AmcId  uint `json:"amcId"`
 	})
 
 	if err := c.BodyParser(reqData); err != nil {
@@ -870,6 +878,11 @@ func Withdraw(c *fiber.Ctx) error {
 	var user models.User
 	if err := database.Database.Db.First(&user, userId).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	}
+
+	var amc models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", reqData.AmcId, "AMC").First(&amc).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid AMC!", nil)
 	}
 
 	if user.MainBalance < reqData.Amount {
@@ -886,6 +899,7 @@ func Withdraw(c *fiber.Ctx) error {
 		Amount:          reqData.Amount,
 		Status:          "COMPLETED",
 		UserID:          userId,
+		AmcID:           reqData.AmcId,
 	}
 
 	// Save the new bank account to the database
@@ -893,7 +907,7 @@ func Withdraw(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to Create Transaction record!", nil)
 	}
 
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "Withdraw Sucess.", nil)
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Withdraw Sucess.", newTransactionDetails)
 }
 
 func TransactionList(c *fiber.Ctx) error {
