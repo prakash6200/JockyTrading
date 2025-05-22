@@ -20,8 +20,8 @@ func UserList(c *fiber.Ctx) error {
 
 	// Check if user exists
 	var user models.User
-	if err := database.Database.Db.First(&user, userId).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
 	}
 
 	// Retrieve validated request data
@@ -68,6 +68,17 @@ func UserList(c *fiber.Ctx) error {
 
 func RegisterAMC(c *fiber.Ctx) error {
 	var reqData models.User
+
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Check if user exists
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
 
 	// Parse Request Body
 	if err := c.BodyParser(&reqData); err != nil {
