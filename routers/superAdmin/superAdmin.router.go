@@ -10,6 +10,7 @@ import (
 func SetupSuperAdminRoutes(app *fiber.App) {
 	adminGroup := app.Group("/admin")
 
-	adminGroup.Get("/user/list", superAdminValidator.UserList(), middleware.JWTMiddleware, superAdminController.UserList)
+	adminGroup.Get("/user/list", superAdminValidator.List(), middleware.JWTMiddleware, superAdminController.UserList)
 	adminGroup.Post("/register-amc", superAdminValidator.RegisterAMC(), middleware.JWTMiddleware, superAdminController.RegisterAMC)
+	adminGroup.Get("/transaction/list", superAdminValidator.List(), middleware.JWTMiddleware, superAdminController.TransactionList)
 }

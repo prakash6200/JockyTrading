@@ -25,7 +25,7 @@ func UserList(c *fiber.Ctx) error {
 	}
 
 	// Retrieve validated request data
-	reqData, ok := c.Locals("validateUserList").(*struct {
+	reqData, ok := c.Locals("list").(*struct {
 		Page  *int `json:"page"`
 		Limit *int `json:"limit"`
 	})
@@ -125,4 +125,59 @@ func RegisterAMC(c *fiber.Ctx) error {
 	newUser.Password = ""
 
 	return middleware.JsonResponse(c, fiber.StatusCreated, true, "AMC registered successfully.", newUser)
+}
+
+func TransactionList(c *fiber.Ctx) error {
+	// Retrieve userId from JWT middleware
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Check if user exists
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	// Retrieve validated request data
+	reqData, ok := c.Locals("list").(*struct {
+		Page  *int `json:"page"`
+		Limit *int `json:"limit"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	offset := (*reqData.Page - 1) * (*reqData.Limit)
+
+	var transactions []models.Transactions
+	var total int64
+
+	// Fetch user list excluding SUPER-ADMIN
+	if err := database.Database.Db.
+		Where("is_deleted = ?", false).
+		Offset(offset).
+		Limit(*reqData.Limit).
+		Find(&transactions).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch user list!", nil)
+	}
+
+	// Count total records
+	database.Database.Db.
+		Model(&models.Transactions{}).
+		Where("is_deleted = ?", false).
+		Count(&total)
+
+	// Response structure
+	response := map[string]interface{}{
+		"Transactions": transactions,
+		"pagination": map[string]interface{}{
+			"total": total,
+			"page":  *reqData.Page,
+			"limit": *reqData.Limit,
+		},
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Transaction List.", response)
 }

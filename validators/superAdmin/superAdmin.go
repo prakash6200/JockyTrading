@@ -20,7 +20,7 @@ func isValidMobile(mobile string) bool {
 	return re.MatchString(mobile)
 }
 
-func UserList() fiber.Handler {
+func List() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		reqData := new(struct {
 			Page  *int `json:"page"`
@@ -56,7 +56,7 @@ func UserList() fiber.Handler {
 			})
 		}
 
-		c.Locals("validateUserList", reqData)
+		c.Locals("list", reqData)
 		return c.Next()
 	}
 }
