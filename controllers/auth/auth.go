@@ -57,10 +57,48 @@ func Signup(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to Signup user!", nil)
 	}
 
+	if err := SeedPermissions(db, newUser.Role, newUser.ID); err != nil {
+		log.Printf("Error seeding permissions: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to assign permissions!", nil)
+	}
+
 	// Clean Response
 	newUser.Password = ""
 
 	return middleware.JsonResponse(c, fiber.StatusCreated, true, "User registered successfully.", newUser)
+}
+
+// SeedPermissions seeds default permissions for a given role and user ID
+func SeedPermissions(db *gorm.DB, role string, userID uint) error {
+	permissions := getDefaultPermissions()
+
+	var permissionRecords []models.Permission
+	for _, p := range permissions {
+		permissionRecords = append(permissionRecords, models.Permission{
+			UserID:     userID,
+			Role:       role,
+			Permission: p,
+		})
+	}
+
+	if err := db.Create(&permissionRecords).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// getDefaultPermissions returns a list of default permission strings
+func getDefaultPermissions() []string {
+	return []string{
+		"login",
+		"deposit",
+		"withdraw",
+		"invest",
+		"view-profile",
+		"transaction-list",
+		"create-folio",
+	}
 }
 
 func Login(c *fiber.Ctx) error {

@@ -3,6 +3,7 @@ package superAdminValidator
 import (
 	"fib/middleware"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -103,6 +104,32 @@ func RegisterAMC() fiber.Handler {
 
 		// Pass AMC user to the next middleware
 		c.Locals("validatedAMC", reqData)
+		return c.Next()
+	}
+}
+
+func PermissionByUserID() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userIDParam := c.Query("userId")
+
+		errors := make(map[string]string)
+
+		// Check if userId is provided
+		if userIDParam == "" {
+			errors["userId"] = "userId is required!"
+		} else {
+			// Check if userId is a valid positive integer
+			if id, err := strconv.Atoi(userIDParam); err != nil || id < 1 {
+				errors["userId"] = "userId must be a valid positive number!"
+			}
+		}
+
+		// Respond with validation errors if any exist
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		c.Locals("validatedUserId", userIDParam)
 		return c.Next()
 	}
 }
