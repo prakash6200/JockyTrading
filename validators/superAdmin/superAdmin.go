@@ -21,6 +21,11 @@ func isValidMobile(mobile string) bool {
 	return re.MatchString(mobile)
 }
 
+func isValidPAN(pan string) bool {
+	match, _ := regexp.MatchString(`^[A-Z]{5}[0-9]{4}[A-Z]$`, pan)
+	return match
+}
+
 func List() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		reqData := new(struct {
@@ -66,11 +71,19 @@ func RegisterAMC() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// user := new(models.User)
 		reqData := new(struct {
-			Mobile   string `json:"mobile"`
-			Email    string `json:"email"`
-			Password string `json:"password"`
-			Name     string `json:"name"`
+			Mobile                string `json:"mobile"`
+			Email                 string `json:"email"`
+			Password              string `json:"password"`
+			Name                  string `json:"name"`
+			PanNumber             string `json:"panNumber"`
+			Address               string `json:"address"`
+			City                  string `json:"city"`
+			State                 string `json:"state"`
+			PinCode               string `json:"pinCode"`
+			ContactPersonName     string `json:"contactPersonName"`
+			ContactPerDesignation string `json:"contactPerDesignation"`
 		})
+
 		if err := c.BodyParser(reqData); err != nil {
 			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
 		}
@@ -95,6 +108,41 @@ func RegisterAMC() fiber.Handler {
 		// Validate Password
 		if len(strings.TrimSpace(reqData.Password)) < 8 {
 			errors["password"] = "Password must be at least 8 characters long!"
+		}
+
+		// PAN Number
+		if reqData.PanNumber == "" || !isValidPAN(reqData.PanNumber) {
+			errors["panNumber"] = "Invalid PAN number format!"
+		}
+
+		// Address
+		if len(strings.TrimSpace(reqData.Address)) < 5 {
+			errors["address"] = "Address must be at least 5 characters long!"
+		}
+
+		// City
+		if len(strings.TrimSpace(reqData.City)) < 2 {
+			errors["city"] = "City must be at least 2 characters long!"
+		}
+
+		// State
+		if len(strings.TrimSpace(reqData.State)) < 2 {
+			errors["state"] = "State must be at least 2 characters long!"
+		}
+
+		// PinCode
+		if reqData.PinCode == "" {
+			errors["pinCode"] = "Invalid pin code!"
+		}
+
+		// Contact Person Name
+		if len(strings.TrimSpace(reqData.ContactPersonName)) < 3 {
+			errors["contactPersonName"] = "Contact person name must be at least 3 characters long!"
+		}
+
+		// Contact Person Designation
+		if len(strings.TrimSpace(reqData.ContactPerDesignation)) < 2 {
+			errors["contactPerDesignation"] = "Designation must be at least 2 characters long!"
 		}
 
 		// Respond with errors if any exist

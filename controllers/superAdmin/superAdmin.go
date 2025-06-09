@@ -224,13 +224,20 @@ func RegisterAMC(c *fiber.Ctx) error {
 
 	// Prepare User Struct for DB Entry
 	newUser := models.User{
-		Name:             reqData.Name,
-		Email:            reqData.Email,
-		Mobile:           reqData.Mobile,
-		Password:         string(hashedPassword),
-		Role:             "AMC",
-		IsMobileVerified: true,
-		IsEmailVerified:  true,
+		Name:                  reqData.Name,
+		Email:                 reqData.Email,
+		Mobile:                reqData.Mobile,
+		Password:              string(hashedPassword),
+		Role:                  "AMC",
+		IsMobileVerified:      true,
+		IsEmailVerified:       true,
+		PanNumber:             reqData.PanNumber,
+		Address:               reqData.Address,
+		City:                  reqData.City,
+		State:                 reqData.State,
+		PinCode:               reqData.PinCode,
+		ContactPersonName:     reqData.ContactPersonName,
+		ContactPerDesignation: reqData.ContactPerDesignation,
 	}
 
 	// Create User
