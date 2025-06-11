@@ -637,33 +637,56 @@ func AddFolioNumber(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid folio number data!", nil)
 	}
 
+	// Normalize folio number (trim whitespace, convert to uppercase)
+	folioNumber := strings.TrimSpace(strings.ToUpper(reqData.FolioNumber))
+	if folioNumber == "" {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Folio number cannot be empty!", nil)
+	}
+
+	// Begin transaction
+	tx := database.Database.Db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	// Check if user exists
 	var user models.User
-	if err := database.Database.Db.First(&user, userId).Error; err != nil {
+	if err := tx.First(&user, userId).Error; err != nil {
+		tx.Rollback()
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
 	}
 
+	// Check for duplicate folio number
 	var existingFolio models.Folio
-	if err := database.Database.Db.
-		Where("user_id = ? AND folio_no = ? AND is_deleted = ?", userId, reqData.FolioNumber, false).
+	if err := tx.
+		Where("user_id = ? AND folio_no = ? AND is_deleted = ?", userId, folioNumber, false).
 		First(&existingFolio).Error; err == nil {
-		// Folio number already exists
+		tx.Rollback()
 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Folio number already exists!", nil)
 	} else if err != gorm.ErrRecordNotFound {
-		// Handle unexpected database errors
-		log.Printf("Failed to check existing folio number: %v", err)
+		tx.Rollback()
+		log.Printf("Failed to check existing folio number for user %d: %v", userId, err)
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to check folio number!", nil)
 	}
 
-	// Create a new folio entry
+	// Create new folio entry
 	folio := models.Folio{
 		UserID:    userId,
-		FolioNo:   reqData.FolioNumber,
+		FolioNo:   folioNumber,
 		IsDeleted: false,
 	}
 
-	if err := database.Database.Db.Create(&folio).Error; err != nil {
-		log.Printf("Failed to save folio number: %v", err)
+	if err := tx.Create(&folio).Error; err != nil {
+		tx.Rollback()
+		log.Printf("Failed to save folio number %s for user %d: %v", folioNumber, userId, err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to save folio number!", nil)
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("Failed to commit transaction for folio number %s: %v", folioNumber, err)
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to save folio number!", nil)
 	}
 
@@ -671,56 +694,67 @@ func AddFolioNumber(c *fiber.Ctx) error {
 }
 
 func FolioNoList(c *fiber.Ctx) error {
-	// Retrieve userId from JWT middleware
+
 	userId, ok := c.Locals("userId").(uint)
 	if !ok {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
 	}
-
-	// Retrieve validated request data
+	print("call api  for amc list")
 	reqData, ok := c.Locals("validatedFolioList").(*struct {
 		Page  *int `json:"page"`
 		Limit *int `json:"limit"`
 	})
-	if !ok {
+	if !ok || reqData.Page == nil || reqData.Limit == nil {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
 	}
 
-	// Calculate offset
+	// Log to verify
+	log.Printf(">> FolioNoList: userId=%d, page=%d, limit=%d", userId, *reqData.Page, *reqData.Limit)
+
 	offset := (*reqData.Page - 1) * (*reqData.Limit)
+	tx := database.Database.Db.Debug().Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
-	// Check if user exists
-	var user models.User
-	if err := database.Database.Db.First(&user, userId).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
-	}
+	// ... user existence check ...
 
-	// Fetch folio numbers with pagination
 	var folios []models.Folio
 	var total int64
 
-	if err := database.Database.Db.
+	if err := tx.Debug().
 		Where("user_id = ? AND is_deleted = ?", userId, false).
 		Offset(offset).
 		Limit(*reqData.Limit).
 		Find(&folios).
 		Error; err != nil {
-		log.Printf("Failed to fetch folio numbers: %v", err)
+		tx.Rollback()
+		log.Printf("Fetch error: %v", err)
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch folio numbers!", nil)
 	}
 
-	// Count total records
-	database.Database.Db.Model(&models.Folio{}).
+	if err := tx.Debug().
+		Model(&models.Folio{}).
 		Where("user_id = ? AND is_deleted = ?", userId, false).
-		Count(&total)
-
-	// Prepare response data (only include FolioNo)
-	folioNumbers := make([]string, len(folios))
-	for i, folio := range folios {
-		folioNumbers[i] = folio.FolioNo
+		Count(&total).
+		Error; err != nil {
+		tx.Rollback()
+		log.Printf("Count error: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch folio numbers!", nil)
 	}
 
-	// Response structure
+	if err := tx.Commit().Error; err != nil {
+		log.Printf("Commit error: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch folio numbers!", nil)
+	}
+
+	folioNumbers := make([]string, len(folios))
+	for i, f := range folios {
+		folioNumbers[i] = f.FolioNo
+	}
+
 	response := map[string]interface{}{
 		"folioNumbers": folioNumbers,
 		"pagination": map[string]interface{}{
