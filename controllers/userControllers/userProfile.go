@@ -10,49 +10,130 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
-func AddBankAccount(c *fiber.Ctx) error {
-	// Retrieve the userId from the JWT token (added by JWTMiddleware)
-	userId := c.Locals("userId").(uint)
+type BankVerifyResponse struct {
+	Code          int    `json:"code"`
+	Timestamp     int64  `json:"timestamp"`
+	TransactionID string `json:"transaction_id"`
+	Data          struct {
+		Entity          string `json:"@entity"`
+		Message         string `json:"message"`
+		AccountExists   bool   `json:"account_exists"`
+		NameAtBank      string `json:"name_at_bank"`
+		Utr             string `json:"utr"`
+		AmountDeposited string `json:"amount_deposited"`
+	} `json:"data"`
+}
 
-	// Parse the request body to get the bank details
+func VerifyBankDetails(accountNo, ifscCode, holderName, mobile string) (bool, error) {
+	// 1. Get token
+	authToken, err := sandboxJwt()
+	if err != nil {
+		return false, fmt.Errorf("failed to get auth token: %v", err)
+	}
+
+	// 2. Prepare URL
+	endpoint := fmt.Sprintf(
+		"%sbank/%s/accounts/%s/verify?name=%s&mobile=%s",
+		config.AppConfig.SandboxApiURL,
+		ifscCode,
+		accountNo,
+		url.QueryEscape(holderName),
+		url.QueryEscape(mobile),
+	)
+
+	// 3. Make HTTP request
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Authorization", authToken)
+	req.Header.Set("x-api-key", config.AppConfig.SandboxApiKey)
+	req.Header.Set("x-api-version", "2.0")
+	req.Header.Set("x-accept-cache", "true")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 4. Read Response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	// 5. Parse JSON
+	var verifyResp BankVerifyResponse
+	err = json.Unmarshal(body, &verifyResp)
+	if err != nil {
+		return false, fmt.Errorf("failed to unmarshal response: %v", err)
+	}
+
+	// 6. Check if verification was successful
+	if verifyResp.Code == 200 && verifyResp.Data.AccountExists {
+		return true, nil
+	}
+
+	return false, fmt.Errorf("bank verification failed: %s", verifyResp.Data.Message)
+}
+
+func AddBankAccount(c *fiber.Ctx) error {
+	// Retrieve userId from JWT token
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid user ID!", nil)
+	}
+
+	// Parse the request body
 	reqData := new(struct {
 		BankName    string `json:"bankName"`
 		AccountNo   string `json:"accountNo"`
 		HolderName  string `json:"holderName"`
 		IFSCCode    string `json:"ifscCode"`
 		BranchName  string `json:"branchName"`
-		AccountType string `json:"accountType"` // Optional, default to "savings"
+		AccountType string `json:"accountType"` // optional
+		Mobile      string `json:"mobile"`
 	})
-
 	if err := c.BodyParser(reqData); err != nil {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Failed to parse request body!", nil)
 	}
 
+	// Check if user exists
 	var user models.User
 	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", userId, false).First(&user).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Access Denied!", nil)
 	}
 
-	// Check if the user already has a bank account
+	// Check if user already has bank details linked
 	if user.BankDetails != 0 {
 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "You already have a bank account!", nil)
 	}
 
-	// Check if the bank account already exists
+	// Check if the bank account already exists in DB
 	var existingBankDetails models.BankDetails
-	result := database.Database.Db.Where("account_no = ?", reqData.AccountNo).First(&existingBankDetails)
-
-	if result.RowsAffected > 0 {
+	if err := database.Database.Db.Where("account_no = ?", reqData.AccountNo).First(&existingBankDetails).Error; err == nil {
 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Bank account already exists!", nil)
 	}
 
-	// Create a new BankDetails object
+	// Sandbox API call - Verify bank details (new way)
+	isVerified, err := VerifyBankDetails(reqData.AccountNo, reqData.IFSCCode, reqData.HolderName, reqData.Mobile)
+	if err != nil {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Bank verification failed: "+err.Error(), nil)
+	}
+
+	// Prepare BankDetails record
+	now := time.Now()
 	newBankDetails := models.BankDetails{
 		BankName:    reqData.BankName,
 		AccountNo:   reqData.AccountNo,
@@ -61,22 +142,23 @@ func AddBankAccount(c *fiber.Ctx) error {
 		BranchName:  reqData.BranchName,
 		AccountType: reqData.AccountType,
 		UserID:      userId,
+		IsVerified:  isVerified,
+	}
+	if isVerified {
+		newBankDetails.VerifiedAt = &now
 	}
 
-	// Save the new bank account to the database
+	// Save new bank details
 	if err := database.Database.Db.Create(&newBankDetails).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to add bank account!", nil)
 	}
 
-	// If user exists, update their bank details field with the new bank account ID
+	// Update user table with BankDetails ID
 	user.BankDetails = newBankDetails.ID
-
-	// Save the updated user with the new bank details
 	if err := database.Database.Db.Save(&user).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update user with bank details!", nil)
 	}
 
-	// Respond with success message
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Bank account added successfully.", newBankDetails)
 }
 
@@ -167,6 +249,7 @@ func SendAdharOtp(c *fiber.Ctx) error {
 	}
 
 	authToken, err := sandboxJwt()
+
 	if err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to get authentication token!", nil)
 	}
@@ -534,36 +617,33 @@ func PanLinkStatus(c *fiber.Ctx) error {
 
 	// Parse API response
 	type PanAadhaarStatusResponse struct {
-		Status     bool   `json:"status"`
-		Message    string `json:"message"`
-		IsLinked   bool   `json:"is_linked"`
-		LinkedDate string `json:"linked_date,omitempty"`
+		Data struct {
+			Entity               string `json:"@entity"`
+			AadhaarSeedingStatus string `json:"aadhaar_seeding_status"`
+			Message              string `json:"message"`
+		} `json:"data"`
 	}
+
 	var apiResponse PanAadhaarStatusResponse
 	if err := json.Unmarshal(body, &apiResponse); err != nil {
 		log.Printf("Failed to parse API response: %v, Body: %s", err, string(body))
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to parse API response!", nil)
 	}
 
-	// Validate critical fields
-	// var validationErrors []string
-	// if apiResponse.Message == "" {
-	// 	validationErrors = append(validationErrors, "Message is empty")
-	// }
-	// if !apiResponse.Status {
-	// 	validationErrors = append(validationErrors, "API status is false")
-	// }
-	// if len(validationErrors) > 0 {
-	// 	log.Printf("Validation failed: %v, Response Data: %+v", validationErrors, apiResponse)
-	// 	return middleware.JsonResponse(c, fiber.StatusBadRequest, false, fmt.Sprintf("Invalid or incomplete API response: %s", strings.Join(validationErrors, "; ")), nil)
-	// }
+	// Check if message matches the required pattern
+	isLinked := apiResponse.Data.AadhaarSeedingStatus == "y" &&
+		strings.HasPrefix(apiResponse.Data.Message, "Your PAN is linked to Aadhaar Number")
+
+	if !isLinked {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "PAN-Aadhaar link verification failed: Invalid response message!", nil)
+	}
 
 	// Use a transaction to ensure atomicity
 	err = database.Database.Db.Transaction(func(tx *gorm.DB) error {
 		// Prepare AadharDetails
 		aadhar := models.AadharDetails{
 			AadharNumber: reqData.AadhaarNumber,
-			IsVerified:   apiResponse.IsLinked, // Set based on link status
+			IsVerified:   isLinked,
 		}
 		// Save or update AadharDetails
 		if err := tx.Where("aadhar_number = ?", reqData.AadhaarNumber).FirstOrCreate(&aadhar).Error; err != nil {
@@ -574,7 +654,7 @@ func PanLinkStatus(c *fiber.Ctx) error {
 		// Prepare PanDetails
 		pan := models.PanDetails{
 			PanNumber:  reqData.PanNumber,
-			IsVerified: apiResponse.IsLinked,
+			IsVerified: isLinked,
 		}
 		// Save or update PanDetails
 		if err := tx.Where("pan_number = ?", reqData.PanNumber).FirstOrCreate(&pan).Error; err != nil {
@@ -591,7 +671,7 @@ func PanLinkStatus(c *fiber.Ctx) error {
 					UserID:     userId,
 					AdharID:    aadhar.ID,
 					PanID:      pan.ID,
-					IsVerified: apiResponse.IsLinked,
+					IsVerified: isLinked,
 					IsDeleted:  false,
 				}
 				if err := tx.Create(&userKYC).Error; err != nil {
@@ -606,7 +686,7 @@ func PanLinkStatus(c *fiber.Ctx) error {
 			// Update existing UserKYC
 			userKYC.AdharID = aadhar.ID
 			userKYC.PanID = pan.ID
-			userKYC.IsVerified = apiResponse.IsLinked
+			userKYC.IsVerified = isLinked
 			if err := tx.Save(&userKYC).Error; err != nil {
 				log.Printf("Failed to update UserKYC: %v", err)
 				return err
@@ -624,7 +704,14 @@ func PanLinkStatus(c *fiber.Ctx) error {
 	}
 
 	// Return success response
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "PAN-Aadhaar link status verified and details saved successfully.", apiResponse)
+	responseData := struct {
+		IsLinked bool   `json:"is_linked"`
+		Message  string `json:"message"`
+	}{
+		IsLinked: isLinked,
+		Message:  apiResponse.Data.Message,
+	}
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "PAN-Aadhaar link status verified and details saved successfully.", responseData)
 }
 
 func AddFolioNumber(c *fiber.Ctx) error {
@@ -772,6 +859,7 @@ func Deposit(c *fiber.Ctx) error {
 
 	reqData := new(struct {
 		Amount uint `json:"amount"`
+		AmcId  uint `json:"amcId"`
 	})
 
 	if err := c.BodyParser(reqData); err != nil {
@@ -781,6 +869,11 @@ func Deposit(c *fiber.Ctx) error {
 	var user models.User
 	if err := database.Database.Db.First(&user, userId).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	}
+
+	var amc models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", reqData.AmcId, "AMC").First(&amc).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid AMC!", nil)
 	}
 
 	user.MainBalance += reqData.Amount
@@ -793,6 +886,7 @@ func Deposit(c *fiber.Ctx) error {
 		Amount:          reqData.Amount,
 		Status:          "COMPLETED",
 		UserID:          userId,
+		AmcID:           reqData.AmcId,
 	}
 
 	// Save the new bank account to the database
@@ -800,7 +894,7 @@ func Deposit(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to Create Transaction record!", nil)
 	}
 
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "Deposite Sucess.", nil)
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Deposite Sucess.", newTransactionDetails)
 }
 
 func Withdraw(c *fiber.Ctx) error {
@@ -808,6 +902,7 @@ func Withdraw(c *fiber.Ctx) error {
 
 	reqData := new(struct {
 		Amount uint `json:"amount"`
+		AmcId  uint `json:"amcId"`
 	})
 
 	if err := c.BodyParser(reqData); err != nil {
@@ -817,6 +912,11 @@ func Withdraw(c *fiber.Ctx) error {
 	var user models.User
 	if err := database.Database.Db.First(&user, userId).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	}
+
+	var amc models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", reqData.AmcId, "AMC").First(&amc).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid AMC!", nil)
 	}
 
 	if user.MainBalance < reqData.Amount {
@@ -833,6 +933,7 @@ func Withdraw(c *fiber.Ctx) error {
 		Amount:          reqData.Amount,
 		Status:          "COMPLETED",
 		UserID:          userId,
+		AmcID:           reqData.AmcId,
 	}
 
 	// Save the new bank account to the database
@@ -840,7 +941,7 @@ func Withdraw(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to Create Transaction record!", nil)
 	}
 
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "Withdraw Sucess.", nil)
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Withdraw Sucess.", newTransactionDetails)
 }
 
 func TransactionList(c *fiber.Ctx) error {

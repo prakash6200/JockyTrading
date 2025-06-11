@@ -45,12 +45,14 @@ func main() {
 	amcRoutes.SetupAMCPredictionRoutes(app)
 
 	startCron()
+
 	log.Printf("Server is running on port %s", config.AppConfig.Port)
 	log.Fatal(app.Listen(":" + config.AppConfig.Port))
 }
 
 func startCron() {
 	// stockCronController.FetchAndStoreStocks()
+	// stockCronController.SyncStockPrices()
 	c := cron.New()
 	c.AddFunc("0 6 * * *", func() {
 		log.Println("Running daily stock sync cron job...")

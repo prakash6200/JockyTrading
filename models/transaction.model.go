@@ -10,6 +10,7 @@ type Transactions struct {
 	UserID          uint   `gorm:"foreignKey:UserID"`
 	TransactionType string `gorm:"not null"` // DEPOSIT/WITHDRAW
 	Amount          uint   `gorm:"not null"`
+	AmcID           uint
 	Status          string `gorm:"not null"` // pending/completed
 	IsDeleted       bool   `gorm:"default:false"`
 }
