@@ -79,7 +79,7 @@ func CourseList() fiber.Handler {
 			})
 		}
 
-		c.Locals("validateList", reqData)
+		c.Locals("validatedList", reqData)
 		return c.Next()
 	}
 }
