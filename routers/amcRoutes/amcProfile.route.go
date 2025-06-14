@@ -1,7 +1,7 @@
 package amcRoutes
 
 import (
-	amcControllers "fib/controllers/amcControllers"
+	amcControllers "fib/controllers/amc"
 	"fib/middleware"
 	"github.com/gofiber/fiber/v2"
 )

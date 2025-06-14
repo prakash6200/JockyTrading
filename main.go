@@ -2,10 +2,11 @@ package main
 
 import (
 	"fib/config"
-	stockCronController "fib/controllers/amcControllers"
+	stockCronController "fib/controllers/amc"
 	"fib/database"
 	amcRoutes "fib/routers/amcRoutes"
 	authRoutes "fib/routers/authRoutes"
+	courseRoutes "fib/routers/courseRoutes"
 	superAdminRoutes "fib/routers/superAdmin"
 	userProfileRoutes "fib/routers/userRoutes"
 
@@ -43,6 +44,7 @@ func main() {
 	amcRoutes.SetupAMCRoutes(app)
 	amcRoutes.AMCProfileRoutes(app)
 	amcRoutes.SetupAMCPredictionRoutes(app)
+	courseRoutes.SetupCourseRoutes(app)
 
 	startCron()
 

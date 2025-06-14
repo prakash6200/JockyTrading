@@ -80,6 +80,8 @@ func runMigrations(db *gorm.DB) {
 		&models.Folio{},
 		&models.StockPrices{},
 		&models.Permission{},
+		&models.Course{},
+		&models.CourseContent{},
 	)
 	if err != nil {
 		log.Fatalf("Migration failed: %v", err)
