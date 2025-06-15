@@ -8,6 +8,7 @@ import (
 	authRoutes "fib/routers/authRoutes"
 	courseRoutes "fib/routers/courseRoutes"
 	superAdminRoutes "fib/routers/superAdmin"
+	supportRoutes "fib/routers/supportRoutes"
 	userProfileRoutes "fib/routers/userRoutes"
 
 	"log"
@@ -45,6 +46,7 @@ func main() {
 	amcRoutes.AMCProfileRoutes(app)
 	amcRoutes.SetupAMCPredictionRoutes(app)
 	courseRoutes.SetupCourseRoutes(app)
+	supportRoutes.SetupSupportRoutes(app)
 
 	startCron()
 
