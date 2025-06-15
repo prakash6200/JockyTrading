@@ -91,6 +91,8 @@ func CreateCourse(c *fiber.Ctx) error {
 	reqData, ok := c.Locals("validatedCourse").(*struct {
 		Title       string `json:"title"`
 		Description string `json:"description"`
+		Author      string `json:"author"`
+		Duration    int64  `json:"duration"`
 	})
 	if !ok {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
@@ -100,6 +102,9 @@ func CreateCourse(c *fiber.Ctx) error {
 	course := models.Course{
 		Title:       reqData.Title,
 		Description: reqData.Description,
+		Author:      reqData.Author,
+		Duration:    reqData.Duration,
+		Status:      "ACTIVE",
 	}
 
 	// Save to database

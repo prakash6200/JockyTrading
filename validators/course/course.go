@@ -2,8 +2,10 @@ package courseValidator
 
 import (
 	"fib/middleware"
-	"github.com/gofiber/fiber/v2"
+	"regexp"
 	"strings"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 func CreateCourse() fiber.Handler {
@@ -11,6 +13,8 @@ func CreateCourse() fiber.Handler {
 		reqData := new(struct {
 			Title       string `json:"title"`
 			Description string `json:"description"`
+			Author      string `json:"author"`
+			Duration    int64  `json:"duration"` // expected to be a valid ISO 8601 date-time string
 		})
 
 		if err := c.BodyParser(reqData); err != nil {
@@ -19,21 +23,39 @@ func CreateCourse() fiber.Handler {
 
 		errors := make(map[string]string)
 
-		// Validate Title
-		if strings.TrimSpace(reqData.Title) == "" {
+		// Trim all fields
+		reqData.Title = strings.TrimSpace(reqData.Title)
+		reqData.Description = strings.TrimSpace(reqData.Description)
+		reqData.Author = strings.TrimSpace(reqData.Author)
+
+		// Title Validation
+		if reqData.Title == "" {
 			errors["title"] = "Title is required!"
-		} else if len(strings.TrimSpace(reqData.Title)) < 3 {
+		} else if len(reqData.Title) < 3 {
 			errors["title"] = "Title must be at least 3 characters long!"
 		}
 
-		// Validate Description
-		if strings.TrimSpace(reqData.Description) == "" {
+		// Description Validation
+		if reqData.Description == "" {
 			errors["description"] = "Description is required!"
-		} else if len(strings.TrimSpace(reqData.Description)) < 5 {
+		} else if len(reqData.Description) < 5 {
 			errors["description"] = "Description must be at least 5 characters long!"
 		}
 
-		// Respond with validation errors if any exist
+		// Author Validation
+		if reqData.Author == "" {
+			errors["author"] = "Author is required!"
+		} else if len(reqData.Author) < 3 {
+			errors["author"] = "Author must be at least 3 characters long!"
+		} else if matched, _ := regexp.MatchString(`[<>{}]`, reqData.Author); matched {
+			errors["author"] = "Author name contains invalid characters!"
+		}
+
+		// Duration Validation (must be future date)
+		if reqData.Duration <= 0 {
+			errors["duration"] = "Duration must be a positive number (in hours)!"
+		}
+
 		if len(errors) > 0 {
 			return middleware.ValidationErrorResponse(c, errors)
 		}
