@@ -48,7 +48,7 @@ func main() {
 	courseRoutes.SetupCourseRoutes(app)
 	supportRoutes.SetupSupportRoutes(app)
 
-	startCron()
+	// startCron()
 
 	log.Printf("Server is running on port %s", config.AppConfig.Port)
 	log.Fatal(app.Listen(":" + config.AppConfig.Port))

@@ -1,79 +1,132 @@
 package amcController
 
 import (
-	"encoding/csv"
 	"encoding/json"
-	"fib/config"
 	"fib/database"
 	"fib/middleware"
 	"fib/models"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"time"
+	"strings"
 
+	"github.com/go-resty/resty/v2"
 	"github.com/gofiber/fiber/v2"
+	"github.com/jinzhu/now"
 )
 
-// SyncStockHandler is called to start the stock sync process.
-func SyncStockHandler(c *fiber.Ctx) error {
-	go FetchAndStoreStocks()
-	return c.JSON(fiber.Map{"message": "Stock sync started"})
-}
+const (
+	SYMBOLS_URL  = "https://api.truedata.in/getAllSymbols"
+	USER_ID      = "Trial189"
+	PASSWORD     = "imran189"
+	AUTH_URL     = "https://auth.truedata.in/token"
+	BARS_URL     = "https://history.truedata.in/getbars"
+	USERNAME     = "Trial189"
+	MARKET_OPEN  = "09:15:00"
+	MARKET_CLOSE = "15:30:00"
+)
 
-// FetchAndStoreStocks fetches stocks from AlphaVantage and stores them in the database.
 func FetchAndStoreStocks() {
-	url := "https://www.alphavantage.co/query?function=LISTING_STATUS&apikey=" + config.AppConfig.AlphaVantageApiKey
 
-	// Make the HTTP request to AlphaVantage API
+	url := fmt.Sprintf("%s?segment=eq&user=%s&password=%s&csv=true", SYMBOLS_URL, USER_ID, PASSWORD)
+	log.Printf("Fetching stock list from: %s", url)
+
+	// Make the HTTP request to TrueData API
 	res, err := http.Get(url)
 	if err != nil {
-		log.Println("Failed to fetch stock list:", err)
+		log.Printf("Failed to fetch stock list: %v", err)
 		return
 	}
 	defer res.Body.Close()
-
-	// Parse the CSV response from AlphaVantage
-	reader := csv.NewReader(res.Body)
-	records, err := reader.ReadAll()
-	if err != nil {
-		log.Println("Failed to parse stock CSV:", err)
+	// Check response status
+	log.Printf("API response status: %s", res.Status)
+	if res.StatusCode != http.StatusOK {
+		log.Printf("API request failed with status: %s", res.Status)
 		return
 	}
-	fmt.Print(records)
-	// Iterate over the records and store each stock in the database
-	for _, row := range records[1:] { // Skipping header row
-		symbol := row[0]
-		name := row[1]
-		sector := row[2]   // Assuming the sector is the third column
-		exchange := row[3] // Assuming exchange is the fourth column (adjust as needed)
-		status := row[len(row)-1]
 
-		fmt.Print(status)
-		// Only process stocks that are marked as "Active"
-		if status == "Active" {
-			// Check if the stock already exists in the database
-			stock := models.Stocks{Symbol: symbol}
-			result := database.Database.Db.FirstOrCreate(&stock, models.Stocks{Symbol: symbol})
-			if result.Error != nil {
-				log.Printf("Error syncing stock %s: %v", symbol, result.Error)
-				continue
-			}
+	// Read the CSV response
+	csvData, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Printf("Failed to read API response: %v", err)
+		return
+	}
+	log.Printf("Received CSV data size: %d bytes", len(csvData))
 
-			// Update the stock details (e.g., Name, Sector, Exchange) if the stock was created
-			stock.Name = name
-			stock.Sector = sector
-			stock.Exchange = exchange
+	// Parse CSV
+	lines := strings.Split(string(csvData), "\n")
+	log.Printf("Parsed %d lines from CSV (including header)", len(lines))
+	if len(lines) < 2 {
+		log.Println("Invalid response: No symbols found")
+		return
+	}
 
-			// Save or update the stock entry
+	// Counter for processed and inserted stocks
+	processed := 0
+	inserted := 0
+	updated := 0
+
+	// Iterate over records and store each stock
+	for i, line := range lines[1:] { // Skip header
+		line = strings.TrimSpace(line)
+		if line == "" {
+			log.Printf("Skipping empty line at index %d", i+1)
+			continue
+		}
+		fields := strings.Split(line, ",")
+		if len(fields) < 5 {
+			log.Printf("Invalid CSV line at index %d: %s (too few fields: %d)", i+1, line, len(fields))
+			continue
+		}
+
+		// Map fields to Stocks model
+		stock := models.Stocks{
+			Symbol:    strings.TrimSpace(fields[1]),
+			Name:      strings.TrimSpace(fields[len(fields)-1]),
+			Exchange:  strings.TrimSpace(fields[4]),
+			Isin:      strings.TrimSpace(fields[3]),
+			Series:    strings.TrimSpace(fields[2]),
+			IsDeleted: false,
+		}
+
+		// Log stock details before insertion
+		log.Printf("Processing stock %d: Symbol=%s, Name=%s, Exchange=%s, Isin=%s, Series=%s",
+			i+1, stock.Symbol, stock.Name, stock.Exchange, stock.Isin, stock.Series)
+		processed++
+
+		// Validate required fields
+		if stock.Symbol == "" || stock.Name == "" || stock.Exchange == "" || stock.Isin == "" || stock.Series == "" {
+			log.Printf("Skipping stock %d: Missing required fields (Symbol=%s, Name=%s, Exchange=%s, Isin=%s, Series=%s)",
+				i+1, stock.Symbol, stock.Name, stock.Exchange, stock.Isin, stock.Series)
+			continue
+		}
+
+		// Upsert stock in database
+		result := database.Database.Db.Where("symbol = ? OR isin = ?", stock.Symbol, stock.Isin).
+			Assign(stock).
+			FirstOrCreate(&stock)
+		if result.Error != nil {
+			log.Printf("Error syncing stock %s (Isin=%s): %v", stock.Symbol, stock.Isin, result.Error)
+			continue
+		}
+
+		if result.RowsAffected == 1 {
+			log.Printf("Inserted new stock: Symbol=%s, Isin=%s", stock.Symbol, stock.Isin)
+			inserted++
+		} else {
+			// Save updated fields for existing stock
 			result = database.Database.Db.Save(&stock)
 			if result.Error != nil {
-				log.Printf("Error saving stock %s: %v", symbol, result.Error)
+				log.Printf("Error updating stock %s (Isin=%s): %v", stock.Symbol, stock.Isin, result.Error)
+				continue
 			}
+			log.Printf("Updated existing stock: Symbol=%s, Isin=%s", stock.Symbol, stock.Isin)
+			updated++
 		}
 	}
 
-	log.Println("Stock list sync completed")
+	log.Printf("Stock list sync completed: Processed=%d, Inserted=%d, Updated=%d", processed, inserted, updated)
 }
 
 func StockList(c *fiber.Ctx) error {
@@ -200,7 +253,6 @@ func AmcPickUnpickStock(c *fiber.Ctx) error {
 func StockPickedByAMCList(c *fiber.Ctx) error {
 	userId := c.Locals("userId").(uint)
 
-	// Validate AMC user
 	var user models.User
 	if err := database.Database.Db.
 		Where("id = ? AND is_deleted = false AND role = ?", userId, "AMC").
@@ -208,27 +260,6 @@ func StockPickedByAMCList(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
 	}
 
-	// Get validated pagination request
-	reqData, ok := c.Locals("validatedStockList").(*struct {
-		Page  *int `json:"page"`
-		Limit *int `json:"limit"`
-	})
-	if !ok {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
-	}
-
-	// Set default pagination
-	page := 1
-	limit := 10
-	if reqData.Page != nil {
-		page = *reqData.Page
-	}
-	if reqData.Limit != nil {
-		limit = *reqData.Limit
-	}
-	offset := (page - 1) * limit
-
-	// Subquery to get picked stock IDs
 	var pickedStockIDs []uint
 	if err := database.Database.Db.
 		Model(&models.AmcStocks{}).
@@ -237,36 +268,25 @@ func StockPickedByAMCList(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stock IDs", nil)
 	}
 
-	// Get total count of picked stocks
-	var total int64
-	db := database.Database.Db.Model(&models.Stocks{}).
-		Where("id IN ? AND is_deleted = false", pickedStockIDs)
-	db.Count(&total)
-
-	// Fetch paginated picked stocks
 	var stocks []models.Stocks
-	if err := db.Offset(offset).Limit(limit).Order("created_at desc").Find(&stocks).Error; err != nil {
+	if err := database.Database.Db.
+		Model(&models.Stocks{}).
+		Where("id IN ? AND is_deleted = false", pickedStockIDs).
+		Order("created_at desc").
+		Find(&stocks).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stocks", nil)
 	}
 
-	// Prepare response
 	response := map[string]interface{}{
 		"stocks": stocks,
-		"pagination": map[string]interface{}{
-			"total": total,
-			"page":  page,
-			"limit": limit,
-		},
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Picked stock list fetched successfully!", response)
 }
 
 func AmcPerformance(c *fiber.Ctx) error {
-	// Retrieve userId from JWT token
 	userId := c.Locals("userId").(uint)
 
-	// Validate AMC user
 	var user models.User
 	if err := database.Database.Db.
 		Where("id = ? AND is_deleted = false AND role = ?", userId, "AMC").
@@ -274,27 +294,6 @@ func AmcPerformance(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
 	}
 
-	// Get validated pagination request
-	reqData, ok := c.Locals("validatedStockList").(*struct {
-		Page  *int `json:"page"`
-		Limit *int `json:"limit"`
-	})
-	if !ok {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
-	}
-
-	// Set default pagination
-	page := 1
-	limit := 10
-	if reqData.Page != nil {
-		page = *reqData.Page
-	}
-	if reqData.Limit != nil {
-		limit = *reqData.Limit
-	}
-	offset := (page - 1) * limit
-
-	// Fetch picked stock IDs
 	var pickedStockIDs []uint
 	if err := database.Database.Db.
 		Model(&models.AmcStocks{}).
@@ -303,148 +302,129 @@ func AmcPerformance(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stock IDs", nil)
 	}
 
-	// Get total count of picked stocks
-	var total int64
-	db := database.Database.Db.Model(&models.Stocks{}).
-		Where("id IN ? AND is_deleted = false", pickedStockIDs)
-	db.Count(&total)
-
-	// Fetch paginated picked stocks
 	var stocks []models.Stocks
-	if err := db.Offset(offset).Limit(limit).Order("created_at desc").Find(&stocks).Error; err != nil {
+	if err := database.Database.Db.
+		Model(&models.Stocks{}).
+		Where("id IN ? AND is_deleted = false", pickedStockIDs).
+		Order("created_at desc").
+		Find(&stocks).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stocks", nil)
 	}
 
-	// Fetch performance data for each stock
+	client := resty.New()
+	resp, err := client.R().
+		SetFormData(map[string]string{
+			"username":   USERNAME,
+			"password":   PASSWORD,
+			"grant_type": "password",
+		}).
+		Post(AUTH_URL)
+	if err != nil {
+		log.Printf("Failed to get access token: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to authenticate with TrueData", nil)
+	}
+	if resp.StatusCode() != 200 {
+		log.Printf("Auth failed: %s", resp.String())
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "TrueData authentication failed", nil)
+	}
+
+	var authResp struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(resp.Body(), &authResp); err != nil {
+		log.Printf("Failed to parse auth response: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Invalid auth response", nil)
+	}
+	token := authResp.AccessToken
+
 	type Performance struct {
-		StockID       uint    `json:"stockId"`
 		Symbol        string  `json:"symbol"`
-		Name          string  `json:"name"`
-		ClosingPrice  float64 `json:"closingPrice"`
+		OpenPrice     float64 `json:"openPrice"`
+		CurrentPrice  float64 `json:"currentPrice"`
+		Change        float64 `json:"change"`
 		PercentChange float64 `json:"percentChange"`
 	}
 
 	var performances []Performance
+	today := now.BeginningOfDay()
+	from := today.Format("060102") + "T" + MARKET_OPEN
+	to := today.Format("060102") + "T" + MARKET_CLOSE
+
 	for _, stock := range stocks {
-		// Fetch daily time series from Alpha Vantage
-		url := fmt.Sprintf(
-			"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s",
-			stock.Symbol, config.AppConfig.AlphaVantageApiKey,
-		)
+		url := fmt.Sprintf("%s?symbol=%s&from=%s&to=%s&response=json&interval=1min", BARS_URL, stock.Symbol, from, to)
+		log.Printf("Fetching bars for %s: %s", stock.Symbol, url)
 
-		res, err := http.Get(url)
+		resp, err := client.R().
+			SetHeader("Authorization", "Bearer "+token).
+			Get(url)
 		if err != nil {
-			log.Printf("Failed to fetch performance for %s: %v", stock.Symbol, err)
+			log.Printf("Failed to fetch bars for %s: %v", stock.Symbol, err)
 			continue
 		}
-		defer res.Body.Close()
-
-		if res.StatusCode != http.StatusOK {
-			log.Printf("Non-200 status for %s: %d", stock.Symbol, res.StatusCode)
-			continue
-		}
-
-		// Parse API response
-		var data map[string]interface{}
-		if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
-			log.Printf("Failed to parse JSON for %s: %v", stock.Symbol, err)
+		if resp.StatusCode() != 200 {
+			log.Printf("Non-200 status for %s: %d, %s", stock.Symbol, resp.StatusCode(), resp.String())
 			continue
 		}
 
-		// Check for API errors (e.g., rate limit)
-		if _, ok := data["Error Message"]; ok {
-			log.Printf("API error for %s: %v", stock.Symbol, data["Error Message"])
+		var barData struct {
+			Records [][]interface{} `json:"Records"`
+		}
+		if err := json.Unmarshal(resp.Body(), &barData); err != nil {
+			log.Printf("Failed to parse bars for %s: %v", stock.Symbol, err)
 			continue
 		}
 
-		// Extract daily time series
-		timeSeries, ok := data["Time Series (Daily)"].(map[string]interface{})
+		if len(barData.Records) == 0 {
+			log.Printf("No bar data for %s", stock.Symbol)
+			continue
+		}
+
+		firstBar := barData.Records[0]
+		lastBar := barData.Records[len(barData.Records)-1]
+		if len(firstBar) < 5 || len(lastBar) < 5 {
+			log.Printf("Invalid bar data for %s", stock.Symbol)
+			continue
+		}
+
+		openPrice, ok := firstBar[1].(float64)
 		if !ok {
-			log.Printf("Invalid time series data for %s", stock.Symbol)
+			log.Printf("Invalid open price for %s", stock.Symbol)
 			continue
 		}
-
-		// Get the latest and previous day's data
-		var latestDate, prevDate string
-		for date := range timeSeries {
-			if latestDate == "" || date > latestDate {
-				prevDate = latestDate
-				latestDate = date
-			} else if prevDate == "" || date > prevDate {
-				prevDate = date
-			}
-		}
-
-		if latestDate == "" || prevDate == "" {
-			log.Printf("Insufficient data for %s", stock.Symbol)
-			continue
-		}
-
-		latestData, ok := timeSeries[latestDate].(map[string]interface{})
+		currentPrice, ok := lastBar[4].(float64)
 		if !ok {
-			log.Printf("Invalid latest data for %s", stock.Symbol)
-			continue
-		}
-		prevData, ok := timeSeries[prevDate].(map[string]interface{})
-		if !ok {
-			log.Printf("Invalid previous data for %s", stock.Symbol)
+			log.Printf("Invalid current price for %s", stock.Symbol)
 			continue
 		}
 
-		// Extract closing prices
-		latestClose, ok := latestData["4. close"].(string)
-		if !ok {
-			log.Printf("Invalid closing price for %s", stock.Symbol)
-			continue
-		}
-		previousClose, ok := prevData["4. close"].(string)
-		if !ok {
-			log.Printf("Invalid previous closing price for %s", stock.Symbol)
-			continue
-		}
+		change := currentPrice - openPrice
+		percentChange := (change / openPrice) * 100
 
-		// Convert to float
-		latestCloseVal, err := parseFloat(latestClose)
-		if err != nil {
-			log.Printf("Failed to parse latest close for %s: %v", stock.Symbol, err)
-			continue
-		}
-		previousCloseVal, err := parseFloat(previousClose)
-		if err != nil {
-			log.Printf("Failed to parse previous close for %s: %v", stock.Symbol, err)
-			continue
-		}
-
-		// Calculate percentage change
-		percentChange := ((latestCloseVal - previousCloseVal) / previousCloseVal) * 100
-
-		// Append performance data
 		performances = append(performances, Performance{
-			StockID:       stock.ID,
 			Symbol:        stock.Symbol,
-			Name:          stock.Name,
-			ClosingPrice:  latestCloseVal,
+			OpenPrice:     openPrice,
+			CurrentPrice:  currentPrice,
+			Change:        change,
 			PercentChange: percentChange,
 		})
+		log.Printf("Performance for %s: Open=%.2f, Current=%.2f, Change=%.2f, PercentChange=%.2f%%", stock.Symbol, openPrice, currentPrice, change, percentChange)
 	}
 
-	// Prepare response
+	var avgPercentChange float64
+	if len(performances) > 0 {
+		sum := 0.0
+		for _, p := range performances {
+			sum += p.PercentChange
+		}
+		avgPercentChange = sum / float64(len(performances))
+	}
+
 	response := map[string]interface{}{
-		"performances": performances,
-		"pagination": map[string]interface{}{
-			"total": total,
-			"page":  page,
-			"limit": limit,
-		},
+		"priceChanges":         performances,
+		"averagePercentChange": fmt.Sprintf("%.2f%%", avgPercentChange),
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC stock performance fetched successfully!", response)
-}
-
-func parseFloat(s string) (float64, error) {
-	var f float64
-	_, err := fmt.Sscanf(s, "%f", &f)
-	return f, err
 }
 
 func AMCList(c *fiber.Ctx) error {
@@ -500,166 +480,4 @@ func AMCList(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC List.", response)
-}
-
-func SyncStockPrices() {
-	var stocks []models.Stocks
-	if err := database.Database.Db.Where("is_deleted = false").Find(&stocks).Error; err != nil {
-		log.Println("Failed to fetch stocks:", err)
-		return
-	}
-
-	for _, stock := range stocks {
-		url := fmt.Sprintf(
-			"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s",
-			stock.Symbol, config.AppConfig.AlphaVantageApiKey,
-		)
-
-		res, err := http.Get(url)
-		if err != nil {
-			log.Printf("Failed to fetch price for %s: %v", stock.Symbol, err)
-			continue
-		}
-		defer res.Body.Close()
-
-		var data map[string]interface{}
-		if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
-			log.Printf("Failed to parse JSON for %s: %v", stock.Symbol, err)
-			continue
-		}
-
-		timeSeries, ok := data["Time Series (Daily)"].(map[string]interface{})
-		if !ok {
-			log.Printf("Invalid time series for %s", stock.Symbol)
-			continue
-		}
-
-		var latestDate string
-		for date := range timeSeries {
-			if latestDate == "" || date > latestDate {
-				latestDate = date
-			}
-		}
-
-		if latestDate == "" {
-			log.Printf("No data for %s", stock.Symbol)
-			continue
-		}
-
-		dailyData, _ := timeSeries[latestDate].(map[string]interface{})
-		closeStr, _ := dailyData["4. close"].(string)
-
-		closeVal, err := parseFloat(closeStr)
-		if err != nil {
-			log.Printf("Failed to parse close price for %s: %v", stock.Symbol, err)
-			continue
-		}
-
-		// Save or Update close price
-		price := models.StockPrices{
-			StockID: stock.ID,
-			Date:    latestDate,
-			Close:   closeVal,
-		}
-		database.Database.Db.
-			Where("stock_id = ? AND date = ?", stock.ID, latestDate).
-			Assign(price).
-			FirstOrCreate(&price)
-	}
-
-	log.Println("Stock price sync completed")
-}
-
-func AmcPerformances(c *fiber.Ctx) error {
-	userId := c.Locals("userId").(uint)
-
-	var user models.User
-	if err := database.Database.Db.
-		Where("id = ? AND is_deleted = false AND role = ?", userId, "AMC").
-		First(&user).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
-	}
-
-	reqData, _ := c.Locals("validatedStockList").(*struct {
-		Page  *int `json:"page"`
-		Limit *int `json:"limit"`
-	})
-
-	page := 1
-	limit := 10
-	if reqData.Page != nil {
-		page = *reqData.Page
-	}
-	if reqData.Limit != nil {
-		limit = *reqData.Limit
-	}
-	offset := (page - 1) * limit
-
-	// Get picked stocks
-	var pickedStockIDs []uint
-	database.Database.Db.
-		Model(&models.AmcStocks{}).
-		Where("user_id = ? AND is_deleted = false", userId).
-		Pluck("stock_id", &pickedStockIDs)
-
-	var stocks []models.Stocks
-	db := database.Database.Db.Model(&models.Stocks{}).
-		Where("id IN ? AND is_deleted = false", pickedStockIDs)
-
-	var total int64
-	db.Count(&total)
-
-	if err := db.Offset(offset).Limit(limit).Order("created_at desc").Find(&stocks).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stocks", nil)
-	}
-
-	// Prepare performances
-	type Performance struct {
-		StockID       uint    `json:"stockId"`
-		Symbol        string  `json:"symbol"`
-		Name          string  `json:"name"`
-		ClosingPrice  float64 `json:"closingPrice"`
-		PercentChange float64 `json:"percentChange"`
-	}
-
-	var performances []Performance
-	today := time.Now().Format("2006-01-02")
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-
-	for _, stock := range stocks {
-		var todayPrice, yesterdayPrice models.StockPrices
-
-		database.Database.Db.
-			Where("stock_id = ? AND date = ?", stock.ID, today).
-			First(&todayPrice)
-
-		database.Database.Db.
-			Where("stock_id = ? AND date = ?", stock.ID, yesterday).
-			First(&yesterdayPrice)
-
-		if todayPrice.ID == 0 || yesterdayPrice.ID == 0 {
-			continue // skip if any missing
-		}
-
-		percentChange := ((todayPrice.Close - yesterdayPrice.Close) / yesterdayPrice.Close) * 100
-
-		performances = append(performances, Performance{
-			StockID:       stock.ID,
-			Symbol:        stock.Symbol,
-			Name:          stock.Name,
-			ClosingPrice:  todayPrice.Close,
-			PercentChange: percentChange,
-		})
-	}
-
-	response := map[string]interface{}{
-		"performances": performances,
-		"pagination": map[string]interface{}{
-			"total": total,
-			"page":  page,
-			"limit": limit,
-		},
-	}
-
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC stock performance fetched successfully!", response)
 }
