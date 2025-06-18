@@ -14,7 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-resty/resty/v2"
 	"github.com/gofiber/fiber/v2"
+	"github.com/jinzhu/now"
 	"gorm.io/gorm"
 )
 
@@ -988,4 +990,170 @@ func TransactionList(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Transactions list.", response)
+}
+
+const (
+	SYMBOLS_URL  = "https://api.truedata.in/getAllSymbols"
+	USER_ID      = "Trial189"
+	PASSWORD     = "imran189"
+	AUTH_URL     = "https://auth.truedata.in/token"
+	BARS_URL     = "https://history.truedata.in/getbars"
+	USERNAME     = "Trial189"
+	MARKET_OPEN  = "09:15:00"
+	MARKET_CLOSE = "15:30:00"
+)
+
+func AmcPerformance(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", userId, false).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Access Denied!", nil)
+	}
+
+	reqData, ok := c.Locals("validatedAmcId").(*struct {
+		AmcId *int `json:"amcId"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	var amc models.User
+	if err := database.Database.Db.
+		Where("id = ? AND is_deleted = false AND role = ?", reqData.AmcId, "AMC").
+		First(&amc).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid AMC Id!", nil)
+	}
+
+	var pickedStockIDs []uint
+	if err := database.Database.Db.
+		Model(&models.AmcStocks{}).
+		Where("user_id = ? AND is_deleted = false", reqData.AmcId).
+		Pluck("stock_id", &pickedStockIDs).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stock IDs", nil)
+	}
+
+	var stocks []models.Stocks
+	if err := database.Database.Db.
+		Model(&models.Stocks{}).
+		Where("id IN ? AND is_deleted = false", pickedStockIDs).
+		Order("created_at desc").
+		Find(&stocks).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stocks", nil)
+	}
+
+	client := resty.New()
+	resp, err := client.R().
+		SetFormData(map[string]string{
+			"username":   USERNAME,
+			"password":   PASSWORD,
+			"grant_type": "password",
+		}).
+		Post(AUTH_URL)
+	if err != nil {
+		log.Printf("Failed to get access token: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to authenticate with TrueData", nil)
+	}
+	if resp.StatusCode() != 200 {
+		log.Printf("Auth failed: %s", resp.String())
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "TrueData authentication failed", nil)
+	}
+
+	var authResp struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(resp.Body(), &authResp); err != nil {
+		log.Printf("Failed to parse auth response: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Invalid auth response", nil)
+	}
+	token := authResp.AccessToken
+
+	type Performance struct {
+		Symbol        string  `json:"symbol"`
+		OpenPrice     float64 `json:"openPrice"`
+		CurrentPrice  float64 `json:"currentPrice"`
+		Change        float64 `json:"change"`
+		PercentChange float64 `json:"percentChange"`
+	}
+
+	var performances []Performance
+	today := now.BeginningOfDay()
+	from := today.Format("060102") + "T" + MARKET_OPEN
+	to := today.Format("060102") + "T" + MARKET_CLOSE
+
+	for _, stock := range stocks {
+		url := fmt.Sprintf("%s?symbol=%s&from=%s&to=%s&response=json&interval=1min", BARS_URL, stock.Symbol, from, to)
+		log.Printf("Fetching bars for %s: %s", stock.Symbol, url)
+
+		resp, err := client.R().
+			SetHeader("Authorization", "Bearer "+token).
+			Get(url)
+		if err != nil {
+			log.Printf("Failed to fetch bars for %s: %v", stock.Symbol, err)
+			continue
+		}
+		if resp.StatusCode() != 200 {
+			log.Printf("Non-200 status for %s: %d, %s", stock.Symbol, resp.StatusCode(), resp.String())
+			continue
+		}
+
+		var barData struct {
+			Records [][]interface{} `json:"Records"`
+		}
+		if err := json.Unmarshal(resp.Body(), &barData); err != nil {
+			log.Printf("Failed to parse bars for %s: %v", stock.Symbol, err)
+			continue
+		}
+
+		if len(barData.Records) == 0 {
+			log.Printf("No bar data for %s", stock.Symbol)
+			continue
+		}
+
+		firstBar := barData.Records[0]
+		lastBar := barData.Records[len(barData.Records)-1]
+		if len(firstBar) < 5 || len(lastBar) < 5 {
+			log.Printf("Invalid bar data for %s", stock.Symbol)
+			continue
+		}
+
+		openPrice, ok := firstBar[1].(float64)
+		if !ok {
+			log.Printf("Invalid open price for %s", stock.Symbol)
+			continue
+		}
+		currentPrice, ok := lastBar[4].(float64)
+		if !ok {
+			log.Printf("Invalid current price for %s", stock.Symbol)
+			continue
+		}
+
+		change := currentPrice - openPrice
+		percentChange := (change / openPrice) * 100
+
+		performances = append(performances, Performance{
+			Symbol:        stock.Symbol,
+			OpenPrice:     openPrice,
+			CurrentPrice:  currentPrice,
+			Change:        change,
+			PercentChange: percentChange,
+		})
+		log.Printf("Performance for %s: Open=%.2f, Current=%.2f, Change=%.2f, PercentChange=%.2f%%", stock.Symbol, openPrice, currentPrice, change, percentChange)
+	}
+
+	var avgPercentChange float64
+	if len(performances) > 0 {
+		sum := 0.0
+		for _, p := range performances {
+			sum += p.PercentChange
+		}
+		avgPercentChange = sum / float64(len(performances))
+	}
+
+	response := map[string]interface{}{
+		"priceChanges":         performances,
+		"averagePercentChange": fmt.Sprintf("%.2f%%", avgPercentChange),
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC stock performance fetched successfully!", response)
 }

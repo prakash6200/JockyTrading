@@ -20,4 +20,7 @@ func SetupUserRoutes(app *fiber.App) {
 	userGroup.Post("/deposit/amount", userPorfileValidator.Deposit(), middleware.JWTMiddleware, userProfileController.Deposit)
 	userGroup.Post("/Withdraw/amount", userPorfileValidator.Withdraw(), middleware.JWTMiddleware, userProfileController.Withdraw)
 	userGroup.Get("/transaction/list", userPorfileValidator.TransactionList(), middleware.JWTMiddleware, userProfileController.TransactionList)
+
+	userGroup.Get("/amc/performance", userPorfileValidator.AmcPerformance(), middleware.JWTMiddleware, userProfileController.AmcPerformance)
+
 }

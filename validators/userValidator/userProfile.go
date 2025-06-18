@@ -320,3 +320,39 @@ func TransactionList() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func AmcPerformance() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			AmcId *int `json:"amcId"`
+		})
+
+		if err := c.QueryParser(reqData); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Invalid request query!",
+				"errors":  nil,
+			})
+		}
+
+		errors := make(map[string]string)
+
+		// Validate Limit
+		if reqData.AmcId == nil || *reqData.AmcId < 1 {
+			errors["amcId"] = "Enter AMC Id!"
+		}
+
+		// Return validation errors
+		if len(errors) > 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Validation failed!",
+				"errors":  errors,
+			})
+		}
+
+		// ✅ Set correct key to match the controller
+		c.Locals("validatedAmcId", reqData)
+		return c.Next()
+	}
+}
