@@ -15,16 +15,9 @@ func SetupCourseRoutes(app *fiber.App) {
 	userGroup.Get("/list", validators.CourseList(), middleware.JWTMiddleware, controllers.GetAllCourses)
 	userGroup.Post("/:id/content", validators.CreateCourseContent(), middleware.JWTMiddleware, controllers.CreateCourseContent)
 	userGroup.Get("/:id/content", validators.CourseContentList(), middleware.JWTMiddleware, controllers.GetCourseContent)
+	userGroup.Post("/:id/enrollment", validators.EnrollCourse(), middleware.JWTMiddleware, controllers.EnrollInCourse)
+	userGroup.Get("/:id/enrollment", validators.GetUserEnrollments(), middleware.JWTMiddleware, controllers.GetEnrollments)
+	userGroup.Post("/:course_id/content/:content_id/complete", validators.MarkContentComplete(), middleware.JWTMiddleware, controllers.MarkContentComplete)
+	userGroup.Get("/:course_id/completions", validators.GetContentCompletions(), middleware.JWTMiddleware, controllers.GetContentCompletions)
+
 }
-
-// func SetupAMCRoutes(app *fiber.App) {
-// 	userGroup := app.Group("/amc")
-
-// 	userGroup.Get("/stock/list", amcValidators.StockList(), middleware.JWTMiddleware,
-// 		middleware.CheckPermissionMiddleware("view-profile"), amcControllers.StockList)
-// 	userGroup.Get("/picked/stock/list", amcValidators.StockPickedByAMCList(), middleware.JWTMiddleware, amcControllers.StockPickedByAMCList)
-// 	userGroup.Post("/select/stock", amcValidators.AmcPickUnpickStockValidator(), middleware.JWTMiddleware, amcControllers.AmcPickUnpickStock)
-// 	userGroup.Get("/performance", amcValidators.AmcPerformance(), middleware.JWTMiddleware, amcControllers.AmcPerformance)
-// 	userGroup.Get("/list", amcValidators.AMCList(), middleware.JWTMiddleware, amcControllers.AMCList)
-// 	// userGroup.Get("/list", amcValidators.AMCList(), middleware.JWTMiddleware, amcControllers.AMCList)
-// }
