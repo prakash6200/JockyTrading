@@ -18,11 +18,11 @@ import (
 
 const (
 	SYMBOLS_URL  = "https://api.truedata.in/getAllSymbols"
-	USER_ID      = "Trial189"
-	PASSWORD     = "imran189"
+	USER_ID      = "tdwsp703"
+	PASSWORD     = "imran@703"
 	AUTH_URL     = "https://auth.truedata.in/token"
 	BARS_URL     = "https://history.truedata.in/getbars"
-	USERNAME     = "Trial189"
+	USERNAME     = "tdwsp703"
 	MARKET_OPEN  = "09:15:00"
 	MARKET_CLOSE = "15:30:00"
 )
