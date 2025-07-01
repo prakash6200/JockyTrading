@@ -192,7 +192,7 @@ func RegisterAMC(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
 	}
 
-	// Check if user exists
+	// Check if ADMIN exists
 	var user models.User
 	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
@@ -256,6 +256,80 @@ func RegisterAMC(c *fiber.Ctx) error {
 	newUser.Password = ""
 
 	return middleware.JsonResponse(c, fiber.StatusCreated, true, "AMC registered successfully.", newUser)
+}
+
+func RegisterDistributor(c *fiber.Ctx) error {
+	var reqData models.User
+
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Check if ADMIN exists
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	// Parse Request Body
+	if err := c.BodyParser(&reqData); err != nil {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+	}
+
+	db := database.Database.Db
+
+	// Check if email already exists
+	if err := db.Where("email = ?", reqData.Email).First(&models.User{}).Error; err == nil {
+		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Email is already registered!", nil)
+	}
+
+	// Check if mobile already exists
+	if err := db.Where("mobile = ?", reqData.Mobile).First(&models.User{}).Error; err == nil {
+		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Mobile number is already registered!", nil)
+	}
+
+	// Hash Password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(reqData.Password), config.AppConfig.SaltRound)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to process your request!", nil)
+	}
+
+	// Prepare User Struct for DB Entry
+	newUser := models.User{
+		Name:                  reqData.Name,
+		Email:                 reqData.Email,
+		Mobile:                reqData.Mobile,
+		Password:              string(hashedPassword),
+		Role:                  "DISTRIBUTOR",
+		IsMobileVerified:      true,
+		IsEmailVerified:       true,
+		PanNumber:             reqData.PanNumber,
+		Address:               reqData.Address,
+		City:                  reqData.City,
+		State:                 reqData.State,
+		PinCode:               reqData.PinCode,
+		ContactPersonName:     reqData.ContactPersonName,
+		ContactPerDesignation: reqData.ContactPerDesignation,
+	}
+
+	// Create User
+	if err := db.Create(&newUser).Error; err != nil {
+		log.Printf("Error saving Distributor to database: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to Register AMC!", nil)
+	}
+
+	// Seed permissions for new AMC user
+	if err := SeedPermissions(db, newUser.Role, newUser.ID); err != nil {
+		log.Printf("Error seeding permissions: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to assign permissions!", nil)
+	}
+
+	// Clean Response
+	newUser.Password = ""
+
+	return middleware.JsonResponse(c, fiber.StatusCreated, true, "Disributor registered successfully.", newUser)
 }
 
 // SeedPermissions seeds default permissions for a given role and user ID

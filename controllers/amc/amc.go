@@ -456,7 +456,7 @@ func AMCList(c *fiber.Ctx) error {
 
 	// Fetch user list excluding SUPER-ADMIN
 	if err := database.Database.Db.
-		Where("is_deleted = ? AND role NOT IN ?", false, []string{"SUPER-ADMIN", "USER"}).
+		Where("is_deleted = ? AND role = ?", false, "AMC").
 		Offset(offset).
 		Limit(*reqData.Limit).
 		Find(&users).Error; err != nil {
@@ -466,7 +466,7 @@ func AMCList(c *fiber.Ctx) error {
 	// Count total records
 	database.Database.Db.
 		Model(&models.User{}).
-		Where("is_deleted = ? AND role NOT IN ?", false, []string{"SUPER-ADMIN", "USER"}).
+		Where("is_deleted = ? AND role = ?", false, "AMC").
 		Count(&total)
 
 	// Response structure
