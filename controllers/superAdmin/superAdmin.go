@@ -7,6 +7,7 @@ import (
 	"fib/models"
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -256,6 +257,58 @@ func RegisterAMC(c *fiber.Ctx) error {
 	newUser.Password = ""
 
 	return middleware.JsonResponse(c, fiber.StatusCreated, true, "AMC registered successfully.", newUser)
+}
+
+func UpdateAMC(c *fiber.Ctx) error {
+	var reqData models.User
+
+	// Get ADMIN user ID from context
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Validate ADMIN role
+	var admin models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&admin).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	// Parse AMC ID from route params
+	amcIDParam := c.Query("id")
+	amcID, err := strconv.ParseUint(amcIDParam, 10, 64)
+	if err != nil {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid AMC ID!", nil)
+	}
+
+	// Parse Request Body
+	if err := c.BodyParser(&reqData); err != nil {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+	}
+
+	db := database.Database.Db
+
+	// Check if AMC user exists
+	var amc models.User
+	if err := database.Database.Db.First(&amc, amcID).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "AMC user not found!", nil)
+	}
+
+	// Ensure the user is AMC
+	if amc.Role != "AMC" {
+		return middleware.JsonResponse(c, fiber.StatusForbidden, false, "This is not AMC!", nil)
+	}
+
+	// Toggle isDeleted status
+	amc.IsDeleted = !amc.IsDeleted
+
+	// Save updates
+	if err := db.Save(&amc).Error; err != nil {
+		log.Printf("Error updating AMC user: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update AMC!", nil)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC updated successfully.", amc)
 }
 
 func RegisterDistributor(c *fiber.Ctx) error {
