@@ -239,6 +239,10 @@ func RegisterAMC(c *fiber.Ctx) error {
 		PinCode:               reqData.PinCode,
 		ContactPersonName:     reqData.ContactPersonName,
 		ContactPerDesignation: reqData.ContactPerDesignation,
+		FundName:              reqData.FundName,
+		EquityPer:             reqData.DebtPer,
+		DebtPer:               reqData.DebtPer,
+		CashSplit:             reqData.CashSplit,
 	}
 
 	// Create User

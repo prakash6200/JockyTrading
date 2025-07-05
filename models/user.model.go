@@ -27,6 +27,10 @@ type User struct {
 	PinCode               string
 	ContactPersonName     string
 	ContactPerDesignation string
+	FundName              string
+	EquityPer             float32
+	DebtPer               float32
+	CashSplit             float32
 	FailedLoginAttempts   int        `gorm:"default:0"`
 	LastFailedLogin       *time.Time `json:"last_failed_login"`
 	IsBlocked             bool       `gorm:"default:false"`

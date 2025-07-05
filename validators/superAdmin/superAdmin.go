@@ -71,17 +71,21 @@ func RegisterAMC() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// user := new(models.User)
 		reqData := new(struct {
-			Mobile                string `json:"mobile"`
-			Email                 string `json:"email"`
-			Password              string `json:"password"`
-			Name                  string `json:"name"`
-			PanNumber             string `json:"panNumber"`
-			Address               string `json:"address"`
-			City                  string `json:"city"`
-			State                 string `json:"state"`
-			PinCode               string `json:"pinCode"`
-			ContactPersonName     string `json:"contactPersonName"`
-			ContactPerDesignation string `json:"contactPerDesignation"`
+			Mobile                string  `json:"mobile"`
+			Email                 string  `json:"email"`
+			Password              string  `json:"password"`
+			Name                  string  `json:"name"`
+			PanNumber             string  `json:"panNumber"`
+			Address               string  `json:"address"`
+			City                  string  `json:"city"`
+			State                 string  `json:"state"`
+			PinCode               string  `json:"pinCode"`
+			ContactPersonName     string  `json:"contactPersonName"`
+			ContactPerDesignation string  `json:"contactPerDesignation"`
+			FundName              string  `json:"fundName"`
+			EquityPer             float32 `json:"equityPer"`
+			DebtPer               float32 `json:"debtPer"`
+			CashSplit             float32 `json:"cashSplit"`
 		})
 
 		if err := c.BodyParser(reqData); err != nil {
@@ -143,6 +147,27 @@ func RegisterAMC() fiber.Handler {
 		// Contact Person Designation
 		if len(strings.TrimSpace(reqData.ContactPerDesignation)) < 2 {
 			errors["contactPerDesignation"] = "Designation must be at least 2 characters long!"
+		}
+
+		// Fund Name
+		if len(strings.TrimSpace(reqData.FundName)) < 2 {
+			errors["fundName"] = "Fund Name must be at least 2 characters long!"
+		}
+
+		// ✅ Validate EquityPer, DebtPer, CashSplit
+		total := reqData.EquityPer + reqData.DebtPer + reqData.CashSplit
+
+		if reqData.EquityPer < 0 || reqData.EquityPer > 100 {
+			errors["equityPer"] = "Equity percentage must be between 0 and 100!"
+		}
+		if reqData.DebtPer < 0 || reqData.DebtPer > 100 {
+			errors["debtPer"] = "Debt percentage must be between 0 and 100!"
+		}
+		if reqData.CashSplit < 0 || reqData.CashSplit > 100 {
+			errors["cashSplit"] = "Cash percentage must be between 0 and 100!"
+		}
+		if int(total) != 100 {
+			errors["totalSplit"] = "Sum of Equity, Debt, and Cash must be exactly 100!"
 		}
 
 		// Respond with errors if any exist
