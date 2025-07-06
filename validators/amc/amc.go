@@ -50,8 +50,9 @@ func StockList() fiber.Handler {
 func AmcPickUnpickStockValidator() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		reqData := new(struct {
-			StockID uint   `json:"stockId"`
-			Action  string `json:"action"`
+			StockID    uint    `json:"stockId"`
+			Action     string  `json:"action"`
+			HoldingPer float32 `josn:"holdingPer"`
 		})
 
 		// Parse JSON body
@@ -74,6 +75,10 @@ func AmcPickUnpickStockValidator() fiber.Handler {
 		validActions := map[string]bool{"pick": true, "unpick": true}
 		if _, ok := validActions[reqData.Action]; !ok {
 			errors["action"] = "Action must be either 'pick' or 'unpick'!"
+		}
+
+		if reqData.HoldingPer < 0 || reqData.HoldingPer > 100 {
+			errors["holdingPer"] = "Holding percentage must be between 0 and 100!"
 		}
 
 		// Return errors if any

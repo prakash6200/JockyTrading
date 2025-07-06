@@ -1007,8 +1007,10 @@ func AmcPerformance(c *fiber.Ctx) error {
 	userId := c.Locals("userId").(uint)
 
 	var user models.User
-	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", userId, false).First(&user).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Access Denied!", nil)
+	if err := database.Database.Db.
+		Where("id = ? AND is_deleted = false AND role = ?", userId, "AMC").
+		First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
 	}
 
 	reqData, ok := c.Locals("validatedAmcId").(*struct {
@@ -1068,91 +1070,93 @@ func AmcPerformance(c *fiber.Ctx) error {
 	}
 	token := authResp.AccessToken
 
-	type Performance struct {
-		Symbol        string  `json:"symbol"`
-		OpenPrice     float64 `json:"openPrice"`
-		CurrentPrice  float64 `json:"currentPrice"`
-		Change        float64 `json:"change"`
-		PercentChange float64 `json:"percentChange"`
+	periods := []struct {
+		name     string
+		from     time.Time
+		interval string
+	}{
+		{"today", now.BeginningOfDay(), "1min"},
+		{"threeDay", now.BeginningOfDay().AddDate(0, 0, -3), "1day"},
+		{"sevenDay", now.BeginningOfDay().AddDate(0, 0, -7), "1day"},
+		{"oneMonth", now.BeginningOfDay().AddDate(0, -1, 0), "1day"},
 	}
 
-	var performances []Performance
+	avgPercentChanges := make(map[string]float64)
 	today := now.BeginningOfDay()
-	from := today.Format("060102") + "T" + MARKET_OPEN
-	to := today.Format("060102") + "T" + MARKET_CLOSE
+	for _, period := range periods {
+		var percentChanges []float64
+		for _, stock := range stocks {
+			from := period.from.Format("060102") + "T" + MARKET_OPEN
+			to := today.Format("060102") + "T" + MARKET_CLOSE
+			url := fmt.Sprintf("%s?symbol=%s&from=%s&to=%s&response=json&interval=%s", BARS_URL, stock.Symbol, from, to, period.interval)
+			log.Printf("Fetching %s bars for %s: %s", period.name, stock.Symbol, url)
 
-	for _, stock := range stocks {
-		url := fmt.Sprintf("%s?symbol=%s&from=%s&to=%s&response=json&interval=1min", BARS_URL, stock.Symbol, from, to)
-		log.Printf("Fetching bars for %s: %s", stock.Symbol, url)
+			resp, err := client.R().
+				SetHeader("Authorization", "Bearer "+token).
+				Get(url)
+			if err != nil {
+				log.Printf("Failed to fetch %s bars for %s: %v", period.name, stock.Symbol, err)
+				continue
+			}
+			if resp.StatusCode() != 200 {
+				log.Printf("Non-200 status for %s %s: %d, %s", period.name, stock.Symbol, resp.StatusCode(), resp.String())
+				continue
+			}
 
-		resp, err := client.R().
-			SetHeader("Authorization", "Bearer "+token).
-			Get(url)
-		if err != nil {
-			log.Printf("Failed to fetch bars for %s: %v", stock.Symbol, err)
-			continue
-		}
-		if resp.StatusCode() != 200 {
-			log.Printf("Non-200 status for %s: %d, %s", stock.Symbol, resp.StatusCode(), resp.String())
-			continue
+			var barData struct {
+				Records [][]interface{} `json:"Records"`
+			}
+			if err := json.Unmarshal(resp.Body(), &barData); err != nil {
+				log.Printf("Failed to parse %s bars for %s: %v", period.name, stock.Symbol, err)
+				continue
+			}
+
+			if len(barData.Records) == 0 {
+				log.Printf("No %s bar data for %s", period.name, stock.Symbol)
+				continue
+			}
+
+			firstBar := barData.Records[0]
+			lastBar := barData.Records[len(barData.Records)-1]
+			if len(firstBar) < 5 || len(lastBar) < 5 {
+				log.Printf("Invalid %s bar data for %s: len(firstBar)=%d, len(lastBar)=%d", period.name, stock.Symbol, len(firstBar), len(lastBar))
+				continue
+			}
+
+			openPrice, ok := firstBar[1].(float64)
+			if !ok {
+				log.Printf("Invalid %s open price for %s: type=%T", period.name, stock.Symbol, firstBar[1])
+				continue
+			}
+			currentPrice, ok := lastBar[4].(float64)
+			if !ok {
+				log.Printf("Invalid %s current price for %s: type=%T", period.name, stock.Symbol, lastBar[4])
+				continue
+			}
+
+			change := currentPrice - openPrice
+			percentChange := (change / openPrice) * 100
+			percentChanges = append(percentChanges, percentChange)
+			log.Printf("%s performance for %s: Open=%.2f, Current=%.2f, Change=%.2f, PercentChange=%.2f%%", period.name, stock.Symbol, openPrice, currentPrice, change, percentChange)
 		}
 
-		var barData struct {
-			Records [][]interface{} `json:"Records"`
+		if len(percentChanges) > 0 {
+			sum := 0.0
+			for _, pc := range percentChanges {
+				sum += pc
+			}
+			avgPercentChanges[period.name] = sum / float64(len(percentChanges))
+		} else {
+			avgPercentChanges[period.name] = 0.0
+			log.Printf("No valid percent changes for %s period", period.name)
 		}
-		if err := json.Unmarshal(resp.Body(), &barData); err != nil {
-			log.Printf("Failed to parse bars for %s: %v", stock.Symbol, err)
-			continue
-		}
-
-		if len(barData.Records) == 0 {
-			log.Printf("No bar data for %s", stock.Symbol)
-			continue
-		}
-
-		firstBar := barData.Records[0]
-		lastBar := barData.Records[len(barData.Records)-1]
-		if len(firstBar) < 5 || len(lastBar) < 5 {
-			log.Printf("Invalid bar data for %s", stock.Symbol)
-			continue
-		}
-
-		openPrice, ok := firstBar[1].(float64)
-		if !ok {
-			log.Printf("Invalid open price for %s", stock.Symbol)
-			continue
-		}
-		currentPrice, ok := lastBar[4].(float64)
-		if !ok {
-			log.Printf("Invalid current price for %s", stock.Symbol)
-			continue
-		}
-
-		change := currentPrice - openPrice
-		percentChange := (change / openPrice) * 100
-
-		performances = append(performances, Performance{
-			Symbol:        stock.Symbol,
-			OpenPrice:     openPrice,
-			CurrentPrice:  currentPrice,
-			Change:        change,
-			PercentChange: percentChange,
-		})
-		log.Printf("Performance for %s: Open=%.2f, Current=%.2f, Change=%.2f, PercentChange=%.2f%%", stock.Symbol, openPrice, currentPrice, change, percentChange)
-	}
-
-	var avgPercentChange float64
-	if len(performances) > 0 {
-		sum := 0.0
-		for _, p := range performances {
-			sum += p.PercentChange
-		}
-		avgPercentChange = sum / float64(len(performances))
 	}
 
 	response := map[string]interface{}{
-		"priceChanges":         performances,
-		"averagePercentChange": fmt.Sprintf("%.2f%%", avgPercentChange),
+		"todayPercentChange":    fmt.Sprintf("%.2f%%", avgPercentChanges["today"]),
+		"threeDayPercentChange": fmt.Sprintf("%.2f%%", avgPercentChanges["threeDay"]),
+		"sevenDayPercentChange": fmt.Sprintf("%.2f%%", avgPercentChanges["sevenDay"]),
+		"oneMonthPercentChange": fmt.Sprintf("%.2f%%", avgPercentChanges["oneMonth"]),
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC stock performance fetched successfully!", response)

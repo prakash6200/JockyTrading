@@ -201,8 +201,9 @@ func AmcPickUnpickStock(c *fiber.Ctx) error {
 
 	// Get validated request
 	reqData, ok := c.Locals("validatedAmcPickUnpickStock").(*struct {
-		StockID uint   `json:"stockId"`
-		Action  string `json:"action"` // "pick" or "unpick"
+		StockID    uint    `json:"stockId"`
+		Action     string  `json:"action"` // "pick" or "unpick"
+		HoldingPer float32 `josn:"holdingPer"`
 	})
 	if !ok {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
@@ -228,7 +229,7 @@ func AmcPickUnpickStock(c *fiber.Ctx) error {
 		}
 
 		// Save new pick
-		pick := models.AmcStocks{UserID: userId, StockId: reqData.StockID}
+		pick := models.AmcStocks{UserID: userId, StockId: reqData.StockID, HoldingPer: reqData.HoldingPer}
 		if err := db.Create(&pick).Error; err != nil {
 			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to pick stock", nil)
 		}
