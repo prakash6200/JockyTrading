@@ -12,4 +12,5 @@ func SetupSupportRoutes(app *fiber.App) {
 
 	support.Post("/create", validator.CreateSupportTicket(), middleware.JWTMiddleware, controller.CreateSupportTicket)
 	support.Get("/list", validator.TicketList(), middleware.JWTMiddleware, controller.TicketList)
+	support.Get("/admin-list", validator.AdminTicketList(), middleware.JWTMiddleware, controller.AdminTicketList)
 }

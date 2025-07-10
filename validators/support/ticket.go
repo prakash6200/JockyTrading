@@ -10,8 +10,11 @@ import (
 func CreateSupportTicket() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		reqData := new(struct {
-			Title       string `json:"title"`
-			Description string `json:"description"`
+			Title    string  `json:"title"`
+			Subject  *string `json:"subject"`
+			Message  string  `json:"message"`
+			Priority *string `json:"priority"`
+			Category *string `json:"category"`
 		})
 
 		if err := c.BodyParser(reqData); err != nil {
@@ -20,11 +23,8 @@ func CreateSupportTicket() fiber.Handler {
 
 		errors := make(map[string]string)
 
-		// Normalize and sanitize inputs
+		// Title validation
 		reqData.Title = strings.TrimSpace(reqData.Title)
-		reqData.Description = strings.TrimSpace(reqData.Description)
-
-		// Validate Title
 		if reqData.Title == "" {
 			errors["title"] = "Title is required!"
 		} else {
@@ -34,29 +34,35 @@ func CreateSupportTicket() fiber.Handler {
 			if len(reqData.Title) > 100 {
 				errors["title"] = "Title must not exceed 100 characters!"
 			}
-			// Check for invalid characters (e.g., HTML tags)
 			if matched, _ := regexp.MatchString(`[<>{}]`, reqData.Title); matched {
 				errors["title"] = "Title contains invalid characters (e.g., <, >, {, })!"
 			}
 		}
 
-		// Validate Description
-		if reqData.Description == "" {
-			errors["description"] = "Description is required!"
-		} else {
-			if len(reqData.Description) < 10 {
-				errors["description"] = "Description must be at least 10 characters long!"
-			}
-			if len(reqData.Description) > 1000 {
-				errors["description"] = "Description must not exceed 1000 characters!"
-			}
-			// Check for invalid characters
-			if matched, _ := regexp.MatchString(`[<>{}]`, reqData.Description); matched {
-				errors["description"] = "Description contains invalid characters (e.g., <, >, {, })!"
+		// Subject validation (optional)
+		if reqData.Subject != nil {
+			*reqData.Subject = strings.TrimSpace(*reqData.Subject)
+			if len(*reqData.Subject) > 200 {
+				errors["subject"] = "Subject must not exceed 200 characters!"
 			}
 		}
 
-		// Respond with validation errors if any exist
+		// Message (must be valid JSON)
+		reqData.Message = strings.TrimSpace(reqData.Message)
+		if reqData.Message == "" {
+			errors["message"] = "message is required!"
+		}
+
+		validPriority := map[string]bool{"LOW": true, "MEDIUM": true, "HIGH": true}
+		validCategory := map[string]bool{"GENERAL": true, "TECHNICAL": true, "BILLING": true}
+
+		if reqData.Priority != nil && !validPriority[strings.ToUpper(*reqData.Priority)] {
+			errors["priority"] = "Invalid priority! Allowed: LOW, MEDIUM, HIGH"
+		}
+		if reqData.Category != nil && !validCategory[strings.ToUpper(*reqData.Category)] {
+			errors["category"] = "Invalid category! Allowed: GENERAL, TECHNICAL, BILLING"
+		}
+
 		if len(errors) > 0 {
 			return middleware.ValidationErrorResponse(c, errors)
 		}
@@ -69,31 +75,98 @@ func CreateSupportTicket() fiber.Handler {
 func TicketList() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		reqData := new(struct {
-			Page  *int `json:"page"`
-			Limit *int `json:"limit"`
+			Page     *int    `query:"page"`
+			Limit    *int    `query:"limit"`
+			Status   *string `query:"status"`
+			Priority *string `query:"priority"`
+			Category *string `query:"category"`
+		})
+
+		if err := c.QueryParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid query parameters!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		// Basic pagination validation
+		if reqData.Page != nil && *reqData.Page < 1 {
+			errors["page"] = "Page must be greater than 0!"
+		}
+		if reqData.Limit != nil && *reqData.Limit < 1 {
+			errors["limit"] = "Limit must be greater than 0!"
+		}
+
+		// Enum validations
+		if reqData.Status != nil {
+			valid := map[string]bool{"OPEN": true, "CLOSED": true, "PENDING": true}
+			if !valid[strings.ToUpper(*reqData.Status)] {
+				errors["status"] = "Invalid status! Must be one of: OPEN, CLOSED, PENDING."
+			}
+		}
+		if reqData.Priority != nil {
+			valid := map[string]bool{"LOW": true, "MEDIUM": true, "HIGH": true}
+			if !valid[strings.ToUpper(*reqData.Priority)] {
+				errors["priority"] = "Invalid priority! Must be one of: LOW, MEDIUM, HIGH."
+			}
+		}
+		if reqData.Category != nil {
+			valid := map[string]bool{"GENERAL": true, "TECHNICAL": true, "BILLING": true}
+			if !valid[strings.ToUpper(*reqData.Category)] {
+				errors["category"] = "Invalid category! Must be one of: GENERAL, TECHNICAL, BILLING."
+			}
+		}
+
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		c.Locals("validatedList", reqData)
+		return c.Next()
+	}
+}
+
+func AdminTicketList() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			Page     *int    `query:"page"`
+			Limit    *int    `query:"limit"`
+			Status   *string `query:"status"`
+			Priority *string `query:"priority"`
+			Category *string `query:"category"`
 		})
 
 		if err := c.QueryParser(reqData); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
-				"message": "Invalid request body!",
+				"message": "Invalid query parameters!",
 				"errors":  nil,
 			})
 		}
 
 		errors := make(map[string]string)
 
-		// Validate Page
-		if reqData.Page == nil || *reqData.Page < 1 {
+		if reqData.Page != nil && *reqData.Page < 1 {
 			errors["page"] = "Page must be greater than 0!"
 		}
-
-		// Validate Limit
-		if reqData.Limit == nil || *reqData.Limit < 1 {
+		if reqData.Limit != nil && *reqData.Limit < 1 {
 			errors["limit"] = "Limit must be greater than 0!"
 		}
 
-		// Respond with validation errors if any exist
+		// Validate optional enums
+		validStatus := map[string]bool{"OPEN": true, "CLOSED": true, "PENDING": true}
+		validPriority := map[string]bool{"LOW": true, "MEDIUM": true, "HIGH": true}
+		validCategory := map[string]bool{"GENERAL": true, "TECHNICAL": true, "BILLING": true}
+
+		if reqData.Status != nil && !validStatus[strings.ToUpper(*reqData.Status)] {
+			errors["status"] = "Invalid status! Must be one of: OPEN, CLOSED, PENDING."
+		}
+		if reqData.Priority != nil && !validPriority[strings.ToUpper(*reqData.Priority)] {
+			errors["priority"] = "Invalid priority! Must be one of: LOW, MEDIUM, HIGH."
+		}
+		if reqData.Category != nil && !validCategory[strings.ToUpper(*reqData.Category)] {
+			errors["category"] = "Invalid category! Must be one of: GENERAL, TECHNICAL, BILLING."
+		}
+
 		if len(errors) > 0 {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
@@ -102,7 +175,7 @@ func TicketList() fiber.Handler {
 			})
 		}
 
-		c.Locals("validatedList", reqData)
+		c.Locals("validatedAdminList", reqData)
 		return c.Next()
 	}
 }

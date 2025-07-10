@@ -1,15 +1,17 @@
 package supportControllers
 
 import (
+	"encoding/json"
 	"fib/database"
 	"fib/middleware"
 	"fib/models"
+	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func CreateSupportTicket(c *fiber.Ctx) error {
-	// Retrieve userId from JWT middleware
 	userId, ok := c.Locals("userId").(uint)
 	if !ok {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
@@ -21,24 +23,50 @@ func CreateSupportTicket(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
 	}
 
-	// Retrieve validated ticket data
+	// Get validated data
 	reqData, ok := c.Locals("validatedSupportTicket").(*struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
+		Title    string  `json:"title"`
+		Subject  *string `json:"subject"`
+		Message  string  `json:"message"`
+		Priority *string `json:"priority"`
+		Category *string `json:"category"`
 	})
 	if !ok {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
 	}
 
-	// Create new support ticket
-	ticket := models.SupportTicket{
-		UserID:      userId,
-		Title:       reqData.Title,
-		Description: reqData.Description,
-		Status:      "OPEN",
+	// Build structured JSON message
+	msgStruct := map[string]interface{}{
+		"sender": "user",
+		"text":   reqData.Message,
+		"time":   time.Now().UTC().Format(time.RFC3339),
+	}
+	msgJSON, err := json.Marshal(msgStruct)
+	if err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to format message!", nil)
 	}
 
-	// Save to database
+	// Prepare ticket model
+	ticket := models.SupportTicket{
+		UserID:   userId,
+		Title:    reqData.Title,
+		Message:  msgJSON,
+		Status:   "OPEN",
+		Priority: "MEDIUM",
+		Category: "GENERAL",
+	}
+
+	if reqData.Subject != nil {
+		ticket.Subject = *reqData.Subject
+	}
+	if reqData.Priority != nil {
+		ticket.Priority = *reqData.Priority
+	}
+	if reqData.Category != nil {
+		ticket.Category = *reqData.Category
+	}
+
+	// Save ticket
 	if err := database.Database.Db.Create(&ticket).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to create support ticket!", nil)
 	}
@@ -47,35 +75,28 @@ func CreateSupportTicket(c *fiber.Ctx) error {
 }
 
 func TicketList(c *fiber.Ctx) error {
-	// Assuming user authentication is in place, retrieve userId from JWT middleware
 	userId, ok := c.Locals("userId").(uint)
 	if !ok {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
 	}
 
-	// Check if user exists (assuming a User model exists)
 	var user models.User
 	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", userId, false).First(&user).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
 	}
 
-	// Retrieve validated pagination request
 	reqData, ok := c.Locals("validatedList").(*struct {
-		Page  *int `json:"page"`
-		Limit *int `json:"limit"`
+		Page     *int    `query:"page"`
+		Limit    *int    `query:"limit"`
+		Status   *string `query:"status"`
+		Priority *string `query:"priority"`
+		Category *string `query:"category"`
 	})
 	if !ok {
-		// If no pagination validator is set, proceed without pagination
-		var tickets []models.SupportTicket
-		if err := database.Database.Db.Where("is_deleted = ? and user_id = ?", false, userId).Find(&tickets).Error; err != nil {
-			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch support tickets!", nil)
-		}
-		return middleware.JsonResponse(c, fiber.StatusOK, true, "Tickets fetched successfully!", fiber.Map{
-			"tickets": tickets,
-		})
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request!", nil)
 	}
 
-	// Set default pagination
+	// Pagination setup
 	page := 1
 	limit := 10
 	if reqData.Page != nil {
@@ -86,28 +107,93 @@ func TicketList(c *fiber.Ctx) error {
 	}
 	offset := (page - 1) * limit
 
-	// Fetch tickets with pagination
-	var tickets []models.SupportTicket
-	db := database.Database.Db.Model(&models.SupportTicket{}).Where("is_deleted = ? AND user_id = ?", false, userId)
+	// Build query with filters
+	db := database.Database.Db.Model(&models.SupportTicket{}).Where("user_id = ? AND is_deleted = false", userId)
 
-	// Get total count
+	// Count total results
 	var total int64
 	db.Count(&total)
 
-	// Fetch paginated data
-	if err := db.Offset(offset).Limit(limit).Order("created_at desc").Find(&tickets).Error; err != nil {
+	var tickets []models.SupportTicket
+	if err := db.Order("created_at DESC").Offset(offset).Limit(limit).Find(&tickets).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch tickets!", nil)
 	}
 
-	// Prepare response
-	response := map[string]interface{}{
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Tickets fetched successfully!", fiber.Map{
 		"tickets": tickets,
-		"pagination": map[string]interface{}{
+		"pagination": fiber.Map{
 			"total": total,
 			"page":  page,
 			"limit": limit,
 		},
+	})
+}
+
+func AdminTicketList(c *fiber.Ctx) error {
+	// Check if user is admin
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
 	}
 
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "Ticket fetched successfully!", response)
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access denied!", nil)
+	}
+
+	// Get validated query data
+	reqData, ok := c.Locals("validatedAdminList").(*struct {
+		Page     *int    `query:"page"`
+		Limit    *int    `query:"limit"`
+		Status   *string `query:"status"`
+		Priority *string `query:"priority"`
+		Category *string `query:"category"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	// Defaults
+	page := 1
+	limit := 10
+	if reqData.Page != nil {
+		page = *reqData.Page
+	}
+	if reqData.Limit != nil {
+		limit = *reqData.Limit
+	}
+	offset := (page - 1) * limit
+
+	// Base query
+	db := database.Database.Db.Model(&models.SupportTicket{}).Where("is_deleted = false")
+
+	// Apply filters
+	if reqData.Status != nil {
+		db = db.Where("UPPER(status) = ?", strings.ToUpper(*reqData.Status))
+	}
+	if reqData.Priority != nil {
+		db = db.Where("UPPER(priority) = ?", strings.ToUpper(*reqData.Priority))
+	}
+	if reqData.Category != nil {
+		db = db.Where("UPPER(category) = ?", strings.ToUpper(*reqData.Category))
+	}
+
+	// Count total
+	var total int64
+	db.Count(&total)
+
+	// Fetch paginated tickets
+	var tickets []models.SupportTicket
+	if err := db.Offset(offset).Limit(limit).Order("created_at DESC").Find(&tickets).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch tickets!", nil)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Tickets fetched successfully!", fiber.Map{
+		"tickets": tickets,
+		"pagination": fiber.Map{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+		},
+	})
 }
