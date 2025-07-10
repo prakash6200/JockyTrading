@@ -255,6 +255,18 @@ func RegisterAMC(c *fiber.Ctx) error {
 }
 
 func UpdateAMC(c *fiber.Ctx) error {
+
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Check if ADMIN exists
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
 	reqData, ok := c.Locals("validatedAMCUpdate").(*struct {
 		ID                    uint     `json:"id"`
 		Name                  *string  `json:"name"`

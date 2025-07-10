@@ -2,6 +2,7 @@ package amcController
 
 import (
 	"encoding/json"
+	"fib/config"
 	"fib/database"
 	"fib/middleware"
 	"fib/models"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/jinzhu/now"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -469,4 +471,107 @@ func AMCList(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC List.", response)
+}
+
+// update amc details
+func Update(c *fiber.Ctx) error {
+
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	reqData, ok := c.Locals("validatedAMCUpdate").(*struct {
+		Name                  *string  `json:"name"`
+		Email                 *string  `json:"email"`
+		Mobile                *string  `json:"mobile"`
+		Password              *string  `json:"password"`
+		PanNumber             *string  `json:"panNumber"`
+		Address               *string  `json:"address"`
+		City                  *string  `json:"city"`
+		State                 *string  `json:"state"`
+		PinCode               *string  `json:"pinCode"`
+		ContactPersonName     *string  `json:"contactPersonName"`
+		ContactPerDesignation *string  `json:"contactPerDesignation"`
+		FundName              *string  `json:"fundName"`
+		EquityPer             *float32 `json:"equityPer"`
+		DebtPer               *float32 `json:"debtPer"`
+		CashSplit             *float32 `json:"cashSplit"`
+		IsDeleted             *bool    `json:"isDeleted"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	db := database.Database.Db
+
+	// Fetch AMC
+	var amc models.User
+	if err := db.Where("id = ? AND role = ?", userId, "AMC").First(&amc).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Access Denied!", nil)
+	}
+
+	// Update only provided fields
+	if reqData.Name != nil {
+		amc.Name = *reqData.Name
+	}
+	if reqData.Email != nil {
+		amc.Email = *reqData.Email
+	}
+	if reqData.Mobile != nil {
+		amc.Mobile = *reqData.Mobile
+	}
+	if reqData.Password != nil && *reqData.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*reqData.Password), config.AppConfig.SaltRound)
+		if err != nil {
+			log.Printf("Password hash error: %v", err)
+			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to hash password", nil)
+		}
+		amc.Password = string(hashedPassword)
+	}
+	if reqData.PanNumber != nil {
+		amc.PanNumber = *reqData.PanNumber
+	}
+	if reqData.Address != nil {
+		amc.Address = *reqData.Address
+	}
+	if reqData.City != nil {
+		amc.City = *reqData.City
+	}
+	if reqData.State != nil {
+		amc.State = *reqData.State
+	}
+	if reqData.PinCode != nil {
+		amc.PinCode = *reqData.PinCode
+	}
+	if reqData.ContactPersonName != nil {
+		amc.ContactPersonName = *reqData.ContactPersonName
+	}
+	if reqData.ContactPerDesignation != nil {
+		amc.ContactPerDesignation = *reqData.ContactPerDesignation
+	}
+	if reqData.FundName != nil {
+		amc.FundName = *reqData.FundName
+	}
+	if reqData.EquityPer != nil {
+		amc.EquityPer = *reqData.EquityPer
+	}
+	if reqData.DebtPer != nil {
+		amc.DebtPer = *reqData.DebtPer
+	}
+	if reqData.CashSplit != nil {
+		amc.CashSplit = *reqData.CashSplit
+	}
+	if reqData.IsDeleted != nil {
+		amc.IsDeleted = *reqData.IsDeleted
+	}
+
+	// Save changes
+	if err := db.Save(&amc).Error; err != nil {
+		log.Printf("Update error: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update", nil)
+	}
+
+	amc.Password = ""
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Updated successfully", amc)
 }
