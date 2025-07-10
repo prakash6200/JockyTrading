@@ -7,7 +7,6 @@ import (
 	"fib/models"
 	"fmt"
 	"log"
-	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -68,67 +67,6 @@ func UserList(c *fiber.Ctx) error {
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "User List.", response)
 }
-
-// func RegisterAMC(c *fiber.Ctx) error {
-// 	var reqData models.User
-
-// 	userId, ok := c.Locals("userId").(uint)
-// 	if !ok {
-// 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
-// 	}
-
-// 	// Check if user exists
-// 	var user models.User
-// 	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
-// 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
-// 	}
-
-// 	// Parse Request Body
-// 	if err := c.BodyParser(&reqData); err != nil {
-// 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
-// 	}
-
-// 	db := database.Database.Db
-
-// 	// Check if email already exists
-// 	if err := db.Where("email = ?", reqData.Email).First(&models.User{}).Error; err == nil {
-// 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Email is already registered!", nil)
-// 	}
-
-// 	// Check if mobile already exists
-// 	if err := db.Where("mobile = ?", reqData.Mobile).First(&models.User{}).Error; err == nil {
-// 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Mobile number is already registered!", nil)
-// 	}
-
-// 	// Hash Password
-// 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(reqData.Password), config.AppConfig.SaltRound)
-// 	if err != nil {
-// 		log.Printf("Error hashing password: %v", err)
-// 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to process your request!", nil)
-// 	}
-
-// 	// Prepare User Struct for DB Entry
-// 	newUser := models.User{
-// 		Name:             reqData.Name,
-// 		Email:            reqData.Email,
-// 		Mobile:           reqData.Mobile,
-// 		Password:         string(hashedPassword),
-// 		Role:             string("AMC"),
-// 		IsMobileVerified: true,
-// 		IsEmailVerified:  true,
-// 	}
-
-// 	// Create User
-// 	if err := db.Create(&newUser).Error; err != nil {
-// 		log.Printf("Error saving AMC to database: %v", err)
-// 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to Register AMC!", nil)
-// 	}
-
-// 	// Clean Response
-// 	newUser.Password = ""
-
-// 	return middleware.JsonResponse(c, fiber.StatusCreated, true, "AMC registered successfully.", newUser)
-// }
 
 func TransactionList(c *fiber.Ctx) error {
 	// Retrieve userId from JWT middleware
@@ -264,55 +202,100 @@ func RegisterAMC(c *fiber.Ctx) error {
 }
 
 func UpdateAMC(c *fiber.Ctx) error {
-	var reqData models.User
-
-	// Get ADMIN user ID from context
-	userId, ok := c.Locals("userId").(uint)
+	reqData, ok := c.Locals("validatedAMCUpdate").(*struct {
+		ID                    uint     `json:"id"`
+		Name                  *string  `json:"name"`
+		Email                 *string  `json:"email"`
+		Mobile                *string  `json:"mobile"`
+		Password              *string  `json:"password"`
+		PanNumber             *string  `json:"panNumber"`
+		Address               *string  `json:"address"`
+		City                  *string  `json:"city"`
+		State                 *string  `json:"state"`
+		PinCode               *string  `json:"pinCode"`
+		ContactPersonName     *string  `json:"contactPersonName"`
+		ContactPerDesignation *string  `json:"contactPerDesignation"`
+		FundName              *string  `json:"fundName"`
+		EquityPer             *float32 `json:"equityPer"`
+		DebtPer               *float32 `json:"debtPer"`
+		CashSplit             *float32 `json:"cashSplit"`
+		IsDeleted             *bool    `json:"isDeleted"`
+	})
 	if !ok {
-		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
-	}
-
-	// Validate ADMIN role
-	var admin models.User
-	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&admin).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
-	}
-
-	// Parse AMC ID from route params
-	amcIDParam := c.Query("id")
-	amcID, err := strconv.ParseUint(amcIDParam, 10, 64)
-	if err != nil {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid AMC ID!", nil)
-	}
-
-	// Parse Request Body
-	if err := c.BodyParser(&reqData); err != nil {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
 	}
 
 	db := database.Database.Db
 
-	// Check if AMC user exists
+	// Fetch AMC
 	var amc models.User
-	if err := database.Database.Db.First(&amc, amcID).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "AMC user not found!", nil)
+	if err := db.Where("id = ? AND role = ?", reqData.ID, "AMC").First(&amc).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "AMC not found!", nil)
 	}
 
-	// Ensure the user is AMC
-	if amc.Role != "AMC" {
-		return middleware.JsonResponse(c, fiber.StatusForbidden, false, "This is not AMC!", nil)
+	// Update only provided fields
+	if reqData.Name != nil {
+		amc.Name = *reqData.Name
+	}
+	if reqData.Email != nil {
+		amc.Email = *reqData.Email
+	}
+	if reqData.Mobile != nil {
+		amc.Mobile = *reqData.Mobile
+	}
+	if reqData.Password != nil && *reqData.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*reqData.Password), config.AppConfig.SaltRound)
+		if err != nil {
+			log.Printf("Password hash error: %v", err)
+			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to hash password", nil)
+		}
+		amc.Password = string(hashedPassword)
+	}
+	if reqData.PanNumber != nil {
+		amc.PanNumber = *reqData.PanNumber
+	}
+	if reqData.Address != nil {
+		amc.Address = *reqData.Address
+	}
+	if reqData.City != nil {
+		amc.City = *reqData.City
+	}
+	if reqData.State != nil {
+		amc.State = *reqData.State
+	}
+	if reqData.PinCode != nil {
+		amc.PinCode = *reqData.PinCode
+	}
+	if reqData.ContactPersonName != nil {
+		amc.ContactPersonName = *reqData.ContactPersonName
+	}
+	if reqData.ContactPerDesignation != nil {
+		amc.ContactPerDesignation = *reqData.ContactPerDesignation
+	}
+	if reqData.FundName != nil {
+		amc.FundName = *reqData.FundName
+	}
+	if reqData.EquityPer != nil {
+		amc.EquityPer = *reqData.EquityPer
+	}
+	if reqData.DebtPer != nil {
+		amc.DebtPer = *reqData.DebtPer
+	}
+	if reqData.CashSplit != nil {
+		amc.CashSplit = *reqData.CashSplit
+	}
+	if reqData.IsDeleted != nil {
+		amc.IsDeleted = *reqData.IsDeleted
 	}
 
-	// Toggle isDeleted status
-	amc.IsDeleted = !amc.IsDeleted
-
-	// Save updates
+	// Save changes
 	if err := db.Save(&amc).Error; err != nil {
-		log.Printf("Error updating AMC user: %v", err)
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update AMC!", nil)
+		log.Printf("Update error: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update AMC", nil)
 	}
 
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC updated successfully.", amc)
+	amc.Password = ""
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC updated successfully", amc)
 }
 
 func RegisterDistributor(c *fiber.Ctx) error {
