@@ -261,20 +261,20 @@ func StockPickedByAMCList(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
 	}
 
-	var pickedStockIDs []uint
-	if err := database.Database.Db.
-		Model(&models.AmcStocks{}).
-		Where("user_id = ? AND is_deleted = false", userId).
-		Pluck("stock_id", &pickedStockIDs).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stock IDs", nil)
+	// Define struct for the response
+	type StockWithHolding struct {
+		models.Stocks
+		HoldingPer float32 `json:"holdingPer"`
 	}
 
-	var stocks []models.Stocks
+	var stocks []StockWithHolding
 	if err := database.Database.Db.
-		Model(&models.Stocks{}).
-		Where("id IN ? AND is_deleted = false", pickedStockIDs).
-		Order("created_at desc").
-		Find(&stocks).Error; err != nil {
+		Table("amc_stocks").
+		Select("stocks.*, amc_stocks.holding_per").
+		Joins("JOIN stocks ON stocks.id = amc_stocks.stock_id").
+		Where("amc_stocks.user_id = ? AND amc_stocks.is_deleted = false AND stocks.is_deleted = false", userId).
+		Order("stocks.created_at DESC").
+		Scan(&stocks).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stocks", nil)
 	}
 
