@@ -295,20 +295,20 @@ func AmcPerformance(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
 	}
 
-	var pickedStockIDs []uint
-	if err := database.Database.Db.
-		Model(&models.AmcStocks{}).
-		Where("user_id = ? AND is_deleted = false", userId).
-		Pluck("stock_id", &pickedStockIDs).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stock IDs", nil)
+	// Join stocks with amc_stocks to get holdingPer
+	type StockWithHolding struct {
+		models.Stocks
+		HoldingPer float32 `json:"holdingPer"`
 	}
 
-	var stocks []models.Stocks
+	var stocks []StockWithHolding
 	if err := database.Database.Db.
-		Model(&models.Stocks{}).
-		Where("id IN ? AND is_deleted = false", pickedStockIDs).
-		Order("created_at desc").
-		Find(&stocks).Error; err != nil {
+		Table("amc_stocks").
+		Select("stocks.*, amc_stocks.holding_per").
+		Joins("JOIN stocks ON stocks.id = amc_stocks.stock_id").
+		Where("amc_stocks.user_id = ? AND amc_stocks.is_deleted = false AND stocks.is_deleted = false", userId).
+		Order("stocks.created_at DESC").
+		Scan(&stocks).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch picked stocks", nil)
 	}
 
@@ -320,12 +320,8 @@ func AmcPerformance(c *fiber.Ctx) error {
 			"grant_type": "password",
 		}).
 		Post(AUTH_URL)
-	if err != nil {
-		log.Printf("Failed to get access token: %v", err)
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to authenticate with TrueData", nil)
-	}
-	if resp.StatusCode() != 200 {
-		log.Printf("Auth failed: %s", resp.String())
+	if err != nil || resp.StatusCode() != 200 {
+		log.Printf("Auth error: %v %s", err, resp.String())
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "TrueData authentication failed", nil)
 	}
 
@@ -333,7 +329,6 @@ func AmcPerformance(c *fiber.Ctx) error {
 		AccessToken string `json:"access_token"`
 	}
 	if err := json.Unmarshal(resp.Body(), &authResp); err != nil {
-		log.Printf("Failed to parse auth response: %v", err)
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Invalid auth response", nil)
 	}
 	token := authResp.AccessToken
@@ -344,6 +339,7 @@ func AmcPerformance(c *fiber.Ctx) error {
 		CurrentPrice  float64 `json:"currentPrice"`
 		Change        float64 `json:"change"`
 		PercentChange float64 `json:"percentChange"`
+		HoldingPer    float32 `json:"holdingPer"`
 	}
 
 	var performances []Performance
@@ -353,48 +349,34 @@ func AmcPerformance(c *fiber.Ctx) error {
 
 	for _, stock := range stocks {
 		url := fmt.Sprintf("%s?symbol=%s&from=%s&to=%s&response=json&interval=1min", BARS_URL, stock.Symbol, from, to)
-		log.Printf("Fetching bars for %s: %s", stock.Symbol, url)
 
 		resp, err := client.R().
 			SetHeader("Authorization", "Bearer "+token).
 			Get(url)
-		if err != nil {
-			log.Printf("Failed to fetch bars for %s: %v", stock.Symbol, err)
-			continue
-		}
-		if resp.StatusCode() != 200 {
-			log.Printf("Non-200 status for %s: %d, %s", stock.Symbol, resp.StatusCode(), resp.String())
+		if err != nil || resp.StatusCode() != 200 {
+			log.Printf("Error fetching bars for %s: %v %s", stock.Symbol, err, resp.String())
 			continue
 		}
 
 		var barData struct {
 			Records [][]interface{} `json:"Records"`
 		}
-		if err := json.Unmarshal(resp.Body(), &barData); err != nil {
-			log.Printf("Failed to parse bars for %s: %v", stock.Symbol, err)
-			continue
-		}
-
-		if len(barData.Records) == 0 {
-			log.Printf("No bar data for %s", stock.Symbol)
+		if err := json.Unmarshal(resp.Body(), &barData); err != nil || len(barData.Records) == 0 {
+			log.Printf("Invalid bar data for %s", stock.Symbol)
 			continue
 		}
 
 		firstBar := barData.Records[0]
 		lastBar := barData.Records[len(barData.Records)-1]
 		if len(firstBar) < 5 || len(lastBar) < 5 {
-			log.Printf("Invalid bar data for %s", stock.Symbol)
+			log.Printf("Invalid bar structure for %s", stock.Symbol)
 			continue
 		}
 
-		openPrice, ok := firstBar[1].(float64)
-		if !ok {
-			log.Printf("Invalid open price for %s", stock.Symbol)
-			continue
-		}
-		currentPrice, ok := lastBar[4].(float64)
-		if !ok {
-			log.Printf("Invalid current price for %s", stock.Symbol)
+		openPrice, ok1 := firstBar[1].(float64)
+		currentPrice, ok2 := lastBar[4].(float64)
+		if !ok1 || !ok2 {
+			log.Printf("Price conversion error for %s", stock.Symbol)
 			continue
 		}
 
@@ -407,17 +389,23 @@ func AmcPerformance(c *fiber.Ctx) error {
 			CurrentPrice:  currentPrice,
 			Change:        change,
 			PercentChange: percentChange,
+			HoldingPer:    stock.HoldingPer,
 		})
-		log.Printf("Performance for %s: Open=%.2f, Current=%.2f, Change=%.2f, PercentChange=%.2f%%", stock.Symbol, openPrice, currentPrice, change, percentChange)
+	}
+
+	// Weighted average based on HoldingPer
+	var totalWeightedChange float64
+	var totalHolding float64
+	for _, p := range performances {
+		totalWeightedChange += float64(p.HoldingPer) * p.PercentChange
+		totalHolding += float64(p.HoldingPer)
 	}
 
 	var avgPercentChange float64
-	if len(performances) > 0 {
-		sum := 0.0
-		for _, p := range performances {
-			sum += p.PercentChange
-		}
-		avgPercentChange = sum / float64(len(performances))
+	if totalHolding > 0 {
+		avgPercentChange = totalWeightedChange / totalHolding
+	} else {
+		avgPercentChange = 0
 	}
 
 	response := map[string]interface{}{
