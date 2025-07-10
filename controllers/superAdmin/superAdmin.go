@@ -40,9 +40,8 @@ func UserList(c *fiber.Ctx) error {
 	var users []models.User
 	var total int64
 
-	// Fetch user list excluding SUPER-ADMIN
 	if err := database.Database.Db.
-		Where("is_deleted = ? AND role != ?", false, "ADMIN").
+		Where("is_deleted = ? AND role = ?", false, "USER").
 		Offset(offset).
 		Limit(*reqData.Limit).
 		Find(&users).Error; err != nil {
@@ -66,6 +65,60 @@ func UserList(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "User List.", response)
+}
+
+func DistributorList(c *fiber.Ctx) error {
+	// Retrieve userId from JWT middleware
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Check if user exists
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	// Retrieve validated request data
+	reqData, ok := c.Locals("list").(*struct {
+		Page  *int `json:"page"`
+		Limit *int `json:"limit"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	offset := (*reqData.Page - 1) * (*reqData.Limit)
+
+	var users []models.User
+	var total int64
+
+	if err := database.Database.Db.
+		Where("is_deleted = ? AND role = ?", false, "DISTRIBUTOR").
+		Offset(offset).
+		Limit(*reqData.Limit).
+		Find(&users).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch user list!", nil)
+	}
+
+	// Count total records
+	database.Database.Db.
+		Model(&models.User{}).
+		Where("is_deleted = ? AND role != ?", false, "ADMIN").
+		Count(&total)
+
+	// Response structure
+	response := map[string]interface{}{
+		"users": users,
+		"pagination": map[string]interface{}{
+			"total": total,
+			"page":  *reqData.Page,
+			"limit": *reqData.Limit,
+		},
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Distributor List.", response)
 }
 
 func TransactionList(c *fiber.Ctx) error {
