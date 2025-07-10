@@ -210,3 +210,28 @@ func AdminReplyTicket() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func CloseTicket() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			TicketID uint `json:"ticketId"`
+		})
+
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		if reqData.TicketID == 0 {
+			errors["ticketId"] = "Ticket ID is required and must be greater than 0!"
+		}
+
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		c.Locals("validatedCloseTicket", reqData)
+		return c.Next()
+	}
+}

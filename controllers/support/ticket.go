@@ -247,8 +247,8 @@ func AdminReplyTicket(c *fiber.Ctx) error {
 	// Update ticket message and optionally status
 	ticket.Message = updatedJSON
 
-	if ticket.Status == "open" {
-		ticket.Status = "pending"
+	if ticket.Status == "OPEN" {
+		ticket.Status = "PENDING"
 	}
 
 	if err := database.Database.Db.Save(&ticket).Error; err != nil {
@@ -309,4 +309,70 @@ func UserReplyTicket(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Reply added successfully!", ticket)
+}
+
+func closeTicket(c *fiber.Ctx, userId uint, isAdmin bool) error {
+	reqData := new(struct {
+		TicketID uint `json:"ticketId"`
+	})
+	if err := c.BodyParser(reqData); err != nil {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+	}
+	if reqData.TicketID == 0 {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Ticket ID is required!", nil)
+	}
+
+	// Fetch ticket with conditions
+	query := database.Database.Db.Model(&models.SupportTicket{}).Where("id = ? AND is_deleted = false", reqData.TicketID)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userId)
+	}
+
+	var ticket models.SupportTicket
+	if err := query.First(&ticket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Ticket not found or access denied!", nil)
+	}
+
+	// Check if already closed
+	if ticket.Status == "CLOSED" {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Ticket is already closed!", nil)
+	}
+
+	// Update status to closed
+	ticket.Status = "CLOSED"
+	if err := database.Database.Db.Save(&ticket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to close ticket!", nil)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Ticket closed successfully.", ticket)
+}
+
+func AdminCloseTicket(c *fiber.Ctx) error {
+	adminId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Verify admin
+	var admin models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", adminId, "ADMIN").First(&admin).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusForbidden, false, "Access denied!", nil)
+	}
+
+	return closeTicket(c, adminId, true)
+}
+
+func UserCloseTicket(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Check if user exists
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false", userId).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	}
+
+	return closeTicket(c, userId, false)
 }

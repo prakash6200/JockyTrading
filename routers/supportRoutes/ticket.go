@@ -15,4 +15,6 @@ func SetupSupportRoutes(app *fiber.App) {
 	support.Get("/admin-list", validator.AdminTicketList(), middleware.JWTMiddleware, controller.AdminTicketList)
 	support.Post("/admin-replay", validator.AdminReplyTicket(), middleware.JWTMiddleware, controller.AdminReplyTicket)
 	support.Post("/user-replay", validator.AdminReplyTicket(), middleware.JWTMiddleware, controller.UserReplyTicket)
+	support.Post("/user-close-ticket", validator.CloseTicket(), middleware.JWTMiddleware, controller.UserCloseTicket)
+	support.Post("/admin-close-ticket", validator.CloseTicket(), middleware.JWTMiddleware, controller.AdminCloseTicket)
 }
