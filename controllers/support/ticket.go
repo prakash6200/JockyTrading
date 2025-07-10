@@ -197,3 +197,116 @@ func AdminTicketList(c *fiber.Ctx) error {
 		},
 	})
 }
+
+func AdminReplyTicket(c *fiber.Ctx) error {
+	adminID, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Check if admin is valid
+	var admin models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", adminID, "ADMIN").First(&admin).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access denied!", nil)
+	}
+
+	// Extract validated payload
+	reqData := c.Locals("validatedAdminReply").(*struct {
+		TicketID uint   `json:"ticketId"`
+		Message  string `json:"message"`
+	})
+
+	// Fetch the ticket
+	var ticket models.SupportTicket
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false", reqData.TicketID).First(&ticket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Support ticket not found!", nil)
+	}
+
+	// Load and decode existing message thread
+	var messages []map[string]interface{}
+	if len(ticket.Message) > 0 {
+		if err := json.Unmarshal(ticket.Message, &messages); err != nil {
+			messages = []map[string]interface{}{} // fallback to empty
+		}
+	}
+
+	// Append admin reply to the thread
+	adminMsg := map[string]interface{}{
+		"sender": "admin",
+		"text":   reqData.Message,
+		"time":   time.Now().UTC().Format(time.RFC3339),
+	}
+	messages = append(messages, adminMsg)
+
+	// Encode updated messages
+	updatedJSON, err := json.Marshal(messages)
+	if err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update message thread!", nil)
+	}
+
+	// Update ticket message and optionally status
+	ticket.Message = updatedJSON
+
+	if ticket.Status == "open" {
+		ticket.Status = "pending"
+	}
+
+	if err := database.Database.Db.Save(&ticket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to save reply!", nil)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Reply added successfully!", ticket)
+}
+
+func UserReplyTicket(c *fiber.Ctx) error {
+	userID, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Validate user exists
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false", userID).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	// Extract validated request
+	reqData := c.Locals("validatedAdminReply").(*struct {
+		TicketID uint   `json:"ticketId"`
+		Message  string `json:"message"`
+	})
+
+	// Fetch ticket
+	var ticket models.SupportTicket
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND user_id = ?", reqData.TicketID, userID).First(&ticket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Ticket not found or access denied!", nil)
+	}
+
+	// Parse existing messages
+	var messages []map[string]interface{}
+	if len(ticket.Message) > 0 {
+		_ = json.Unmarshal(ticket.Message, &messages)
+	}
+
+	// Append user reply
+	reply := map[string]interface{}{
+		"sender": "user",
+		"text":   reqData.Message,
+		"time":   time.Now().UTC().Format(time.RFC3339),
+	}
+	messages = append(messages, reply)
+
+	// ✅ Assign updated message JSON back to ticket.Message
+	updatedJSON, err := json.Marshal(messages)
+	if err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to encode reply!", nil)
+	}
+	ticket.Message = updatedJSON
+
+	// Save changes
+	if err := database.Database.Db.Save(&ticket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to save user reply!", nil)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Reply added successfully!", ticket)
+}

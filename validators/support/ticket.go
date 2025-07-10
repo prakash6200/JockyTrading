@@ -179,3 +179,34 @@ func AdminTicketList() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func AdminReplyTicket() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			TicketID uint   `json:"ticketId"`
+			Message  string `json:"message"`
+		})
+
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		if reqData.TicketID == 0 {
+			errors["ticketId"] = "Ticket ID is required!"
+		}
+
+		reqData.Message = strings.TrimSpace(reqData.Message)
+		if reqData.Message == "" {
+			errors["message"] = "Reply message is required!"
+		}
+
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		c.Locals("validatedAdminReply", reqData)
+		return c.Next()
+	}
+}
