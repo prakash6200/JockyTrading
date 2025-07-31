@@ -2,9 +2,10 @@ package authValidator
 
 import (
 	"fib/middleware"
-	"github.com/gofiber/fiber/v2"
 	"regexp"
 	"strings"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 // Helper to validate email format
@@ -302,6 +303,90 @@ func ChangeLoginPassword() fiber.Handler {
 
 		// Pass validated request to the next middleware
 		c.Locals("validatedUser", reqData)
+		return c.Next()
+	}
+}
+
+// Login Otp
+func LoginOtp() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			Mobile string `json:"mobile"`
+			Email  string `json:"email"`
+		})
+
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		// Validate that only one is provided
+		if reqData.Email == "" && reqData.Mobile == "" {
+			errors["credentials"] = "Either email or mobile number is required!"
+		} else if reqData.Email != "" && reqData.Mobile != "" {
+			errors["credentials"] = "Only one of email or mobile should be provided!"
+		} else {
+			if reqData.Email != "" && !isValidEmail(reqData.Email) {
+				errors["email"] = "Invalid email format!"
+			}
+			if reqData.Mobile != "" && !isValidMobile(reqData.Mobile) {
+				errors["mobile"] = "Invalid mobile number!"
+			}
+		}
+
+		// Respond with errors if any exist
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		// Pass validated login request to the next handler
+		c.Locals("validatedLoginUser", reqData)
+		return c.Next()
+	}
+}
+
+// verify login otp
+func LoginVerifyOtpValidator() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			Mobile string `json:"mobile"`
+			Email  string `json:"email"`
+			Code   string `json:"code"`
+		})
+
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		// Validate email/mobile exclusivity
+		if reqData.Email == "" && reqData.Mobile == "" {
+			errors["credentials"] = "Either email or mobile number is required!"
+		} else if reqData.Email != "" && reqData.Mobile != "" {
+			errors["credentials"] = "Only one of email or mobile should be provided!"
+		} else {
+			if reqData.Email != "" && !isValidEmail(reqData.Email) {
+				errors["email"] = "Invalid email format!"
+			}
+			if reqData.Mobile != "" && !isValidMobile(reqData.Mobile) {
+				errors["mobile"] = "Invalid mobile number!"
+			}
+		}
+
+		// OTP code required
+		if reqData.Code == "" {
+			errors["code"] = "OTP code is required!"
+		}
+
+		// Return errors if any
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		// Pass validated data to handler
+		c.Locals("validatedOTPRequest", reqData)
 		return c.Next()
 	}
 }

@@ -20,4 +20,10 @@ func SetupAuthRoutes(app *fiber.App) {
 	authGroup.Patch("/forgot/password/verify/otp", authValidators.VerifyOTP(), authControllers.ForgotPasswordVerifyOTP)
 	authGroup.Patch("/reset/password", authValidators.ResetPassword(), middleware.JWTMiddleware, authControllers.ResetPassword)
 	authGroup.Put("/change/login/password", authValidators.ChangeLoginPassword(), middleware.JWTMiddleware, authControllers.ChangeLoginPassword)
+
+	// Send login otp
+	authGroup.Post("/login-otp", authValidators.LoginOtp(), authControllers.LoginSendOTP)
+	// Verify login otp
+	authGroup.Post("/verify-login-otp", authValidators.LoginVerifyOtpValidator(), authControllers.LoginVerifyOTP)
+
 }
