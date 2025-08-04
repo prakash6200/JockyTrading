@@ -709,6 +709,72 @@ func LoginSendOTP(c *fiber.Ctx) error {
 }
 
 // Login Verify otp
+// func LoginVerifyOTP(c *fiber.Ctx) error {
+// 	reqData := new(struct {
+// 		Mobile string `json:"mobile"`
+// 		Email  string `json:"email"`
+// 		Code   string `json:"code"`
+// 	})
+
+// 	if err := c.BodyParser(reqData); err != nil {
+// 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Failed to parse request body!", nil)
+// 	}
+
+// 	// Validate that exactly one of email or mobile is provided
+// 	if (reqData.Email == "" && reqData.Mobile == "") || (reqData.Email != "" && reqData.Mobile != "") {
+// 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Provide either email or mobile (only one).", nil)
+// 	}
+
+// 	var user models.User
+// 	var otpRecord models.OTP
+
+// 	// Case: Email-based OTP
+// 	if reqData.Email != "" {
+// 		// Find user
+// 		if err := database.Database.Db.Where("email = ? AND is_deleted = false", reqData.Email).First(&user).Error; err != nil {
+// 			return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+// 		}
+
+// 		// Find OTP
+// 		if err := database.Database.Db.Where("email = ? AND code = ? AND is_used = false AND is_deleted = false", reqData.Email, reqData.Code).First(&otpRecord).Error; err != nil {
+// 			return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid or expired OTP!", nil)
+// 		}
+// 	}
+
+// 	// Case: Mobile-based OTP
+// 	if reqData.Mobile != "" {
+// 		if err := database.Database.Db.Where("mobile = ? AND is_deleted = false", reqData.Mobile).First(&user).Error; err != nil {
+// 			return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+// 		}
+
+// 		if err := database.Database.Db.Where("mobile = ? AND code = ? AND is_used = false AND is_deleted = false", reqData.Mobile, reqData.Code).First(&otpRecord).Error; err != nil {
+// 			return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid or expired OTP!", nil)
+// 		}
+// 	}
+
+// 	// Check OTP expiration
+// 	if otpRecord.ExpiresAt.Before(time.Now()) {
+// 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "OTP has expired!", nil)
+// 	}
+
+// 	// Mark OTP as used
+// 	otpRecord.IsUsed = true
+// 	if err := database.Database.Db.Save(&otpRecord).Error; err != nil {
+// 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update OTP status!", nil)
+// 	}
+
+// 	// Generate JWT
+// 	token, err := middleware.GenerateJWT(user.ID, user.Name, user.Role)
+// 	if err != nil {
+// 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to generate token", nil)
+// 	}
+
+// 	return middleware.JsonResponse(c, fiber.StatusOK, true, "OTP verified successfully.", fiber.Map{
+// 		"user":  user,
+// 		"token": token,
+// 	})
+// }
+
 func LoginVerifyOTP(c *fiber.Ctx) error {
 	reqData := new(struct {
 		Mobile string `json:"mobile"`
@@ -726,18 +792,12 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 	}
 
 	var user models.User
-	var otpRecord models.OTP
 
 	// Case: Email-based OTP
 	if reqData.Email != "" {
 		// Find user
 		if err := database.Database.Db.Where("email = ? AND is_deleted = false", reqData.Email).First(&user).Error; err != nil {
 			return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
-		}
-
-		// Find OTP
-		if err := database.Database.Db.Where("email = ? AND code = ? AND is_used = false AND is_deleted = false", reqData.Email, reqData.Code).First(&otpRecord).Error; err != nil {
-			return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid or expired OTP!", nil)
 		}
 	}
 
@@ -746,21 +806,11 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 		if err := database.Database.Db.Where("mobile = ? AND is_deleted = false", reqData.Mobile).First(&user).Error; err != nil {
 			return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
 		}
-
-		if err := database.Database.Db.Where("mobile = ? AND code = ? AND is_used = false AND is_deleted = false", reqData.Mobile, reqData.Code).First(&otpRecord).Error; err != nil {
-			return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid or expired OTP!", nil)
-		}
 	}
 
-	// Check OTP expiration
-	if otpRecord.ExpiresAt.Before(time.Now()) {
-		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "OTP has expired!", nil)
-	}
-
-	// Mark OTP as used
-	otpRecord.IsUsed = true
-	if err := database.Database.Db.Save(&otpRecord).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update OTP status!", nil)
+	// ✅ Hardcoded OTP check
+	if reqData.Code != "1234" {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Invalid OTP!", nil)
 	}
 
 	// Generate JWT
