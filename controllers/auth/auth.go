@@ -7,7 +7,10 @@ import (
 	"fib/models"
 	"fib/utils"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -62,6 +65,36 @@ func Signup(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to assign permissions!", nil)
 	}
 
+	go func(user models.User, password string) {
+		formData := url.Values{}
+		formData.Set("name", user.Name)
+		formData.Set("email", user.Email)
+		formData.Set("mobile", user.Mobile)
+		formData.Set("password", password) // send original password, not hashed
+
+		req, err := http.NewRequest("POST", "http://localhost:8000/auth/register", strings.NewReader(formData.Encode()))
+		if err != nil {
+			log.Printf("Error creating request to external API: %v", err)
+			return
+		}
+
+		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("Error calling external API: %v", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			log.Printf("External API registration failed: %s", string(body))
+		} else {
+			log.Printf("User synced successfully to external server: %s", user.Email)
+		}
+	}(newUser, reqData.Password)
 	// Clean Response
 	newUser.Password = ""
 
@@ -209,9 +242,9 @@ func Login(c *fiber.Ctx) error {
 	user.ProfileImage = ""
 
 	// Generate JWT token
-	token, err := middleware.GenerateJWT(user.ID, user.Name, user.Role)
+	token, err := middleware.GenerateJWT(user.ID, user.Name, user.Role, user.Email, user.Mobile)
 	if err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Error generating JWT token!", nil)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to generate token", nil)
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Login successful.", fiber.Map{
@@ -525,9 +558,9 @@ func ForgotPasswordVerifyOTP(c *fiber.Ctx) error {
 	}
 
 	// Generate JWT token
-	token, err := middleware.GenerateJWT(user.ID, user.Name, user.Role)
+	token, err := middleware.GenerateJWT(user.ID, user.Name, user.Role, user.Email, user.Mobile)
 	if err != nil {
-		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Error generating JWT token!", nil)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to generate token", nil)
 	}
 
 	// Return success response along with the JWT token
@@ -814,7 +847,8 @@ func LoginVerifyOTP(c *fiber.Ctx) error {
 	}
 
 	// Generate JWT
-	token, err := middleware.GenerateJWT(user.ID, user.Name, user.Role)
+	// token, err := middleware.GenerateJWT(user.ID, user.Name, user.Role)
+	token, err := middleware.GenerateJWT(user.ID, user.Name, user.Role, user.Email, user.Mobile)
 	if err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to generate token", nil)
 	}

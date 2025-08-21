@@ -11,20 +11,20 @@ import (
 )
 
 // GenerateJWT generates a JWT token for the user
-func GenerateJWT(userID uint, name, role string) (string, error) {
-	// Set claims
+func GenerateJWT(userID uint, name, role, email, mobile string) (string, error) {
 	claims := jwt.MapClaims{
-		"userId": userID,                                // User ID
-		"name":   name,                                  // Name of the user
-		"role":   role,                                  // User role
-		"iat":    time.Now().Unix(),                     // Issued at (current timestamp)
-		"exp":    time.Now().Add(24 * time.Hour).Unix(), // Expiry (24 hours from now)
+		"userId": userID,
+		"name":   name,
+		"role":   role,
+		"email":  email,
+		"mobile": mobile,
+		"iat":    time.Now().Unix(),                     // issued at
+		"exp":    time.Now().Add(24 * time.Hour).Unix(), // expiry 24h
 	}
 
-	// Create the token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	jwtSecret := []byte(config.AppConfig.JWTKey)
-	// Sign the token with the secret key
+
 	return token.SignedString(jwtSecret)
 }
 
