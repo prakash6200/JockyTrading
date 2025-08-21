@@ -72,7 +72,7 @@ func Signup(c *fiber.Ctx) error {
 		formData.Set("mobile", user.Mobile)
 		formData.Set("password", password) // send original password, not hashed
 
-		req, err := http.NewRequest("POST", "http://localhost:8000/auth/register", strings.NewReader(formData.Encode()))
+		req, err := http.NewRequest("POST", "https://classiahealth.com/auth/register", strings.NewReader(formData.Encode()))
 		if err != nil {
 			log.Printf("Error creating request to external API: %v", err)
 			return
