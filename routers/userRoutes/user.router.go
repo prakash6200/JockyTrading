@@ -22,5 +22,5 @@ func SetupUserRoutes(app *fiber.App) {
 	userGroup.Get("/transaction/list", userPorfileValidator.TransactionList(), middleware.JWTMiddleware, userProfileController.TransactionList)
 
 	userGroup.Get("/amc/performance", userPorfileValidator.AmcPerformance(), middleware.JWTMiddleware, userProfileController.AmcPerformance)
-
+	userGroup.Get("/maintenance", userProfileController.GetLatestMaintenance)
 }

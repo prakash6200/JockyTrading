@@ -4,6 +4,7 @@ import (
 	superAdminController "fib/controllers/superAdmin"
 	"fib/middleware"
 	superAdminValidator "fib/validators/superAdmin"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -17,4 +18,5 @@ func SetupSuperAdminRoutes(app *fiber.App) {
 	adminGroup.Post("/register-distributor", superAdminValidator.RegisterAMC(), middleware.JWTMiddleware, superAdminController.RegisterDistributor)
 	adminGroup.Get("/transaction/list", superAdminValidator.List(), middleware.JWTMiddleware, superAdminController.TransactionList)
 	adminGroup.Get("/permission", superAdminValidator.PermissionByUserID(), middleware.JWTMiddleware, superAdminController.PermissionsByUserID)
+	adminGroup.Post("/create-maintenance", superAdminValidator.ValidateMaintenance(), middleware.JWTMiddleware, superAdminController.CreateMaintenance)
 }

@@ -510,6 +510,44 @@ func PermissionsByUserID(c *fiber.Ctx) error {
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Permissions fetched successfully", permissions)
 }
 
+func CreateMaintenance(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Check ADMIN
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	// ✅ Get validated request data
+	reqData, ok := c.Locals("validatedMaintenance").(*struct {
+		AppMaintenance       bool   `json:"app_maintenance"`
+		ForceUpdate          bool   `json:"force_update"`
+		IosLatestVersion     string `json:"ios_latest_version"`
+		AndroidLatestVersion string `json:"android_latest_version"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	// Always create a new record
+	maintenance := models.Maintenance{
+		AppMaintenance:       reqData.AppMaintenance,
+		ForceUpdate:          reqData.ForceUpdate,
+		IosLatestVersion:     reqData.IosLatestVersion,
+		AndroidLatestVersion: reqData.AndroidLatestVersion,
+	}
+
+	if err := database.Database.Db.Create(&maintenance).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to create maintenance record", nil)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusCreated, true, "Maintenance created successfully", maintenance)
+}
+
 // func UpdatePermissions(c *fiber.Ctx) error {
 // 	// ✅ Only ADMIN can call this
 // 	userId, ok := c.Locals("userId").(uint)

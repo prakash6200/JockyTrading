@@ -2,6 +2,7 @@ package userController
 
 import (
 	"encoding/json"
+	"errors"
 	"fib/config"
 	"fib/database"
 	"fib/middleware"
@@ -1146,4 +1147,17 @@ func AmcPerformance(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "AMC stock performance fetched successfully!", response)
+}
+
+func GetLatestMaintenance(c *fiber.Ctx) error {
+	var maintenance models.Maintenance
+
+	if err := database.Database.Db.Order("created_at DESC").First(&maintenance).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return middleware.JsonResponse(c, fiber.StatusNotFound, false, "No maintenance record found", nil)
+		}
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Database error", nil)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Latest maintenance record", maintenance)
 }

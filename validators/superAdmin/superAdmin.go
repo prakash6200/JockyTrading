@@ -26,6 +26,12 @@ func isValidPAN(pan string) bool {
 	return match
 }
 
+// Simple semantic version check (e.g., 1.2.3)
+func isValidSemVer(version string) bool {
+	re := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+	return re.MatchString(version)
+}
+
 func List() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		reqData := new(struct {
@@ -281,6 +287,45 @@ func PermissionByUserID() fiber.Handler {
 		}
 
 		c.Locals("validatedUserId", userIDParam)
+		return c.Next()
+	}
+}
+
+func ValidateMaintenance() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			AppMaintenance       bool   `json:"app_maintenance"`
+			ForceUpdate          bool   `json:"force_update"`
+			IosLatestVersion     string `json:"ios_latest_version"`
+			AndroidLatestVersion string `json:"android_latest_version"`
+		})
+
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		// Validate iOS version
+		if strings.TrimSpace(reqData.IosLatestVersion) == "" {
+			errors["ios_latest_version"] = "iOS version is required!"
+		} else if !isValidSemVer(reqData.IosLatestVersion) {
+			errors["ios_latest_version"] = "Invalid iOS version format! (expected x.y.z)"
+		}
+
+		// Validate Android version
+		if strings.TrimSpace(reqData.AndroidLatestVersion) == "" {
+			errors["android_latest_version"] = "Android version is required!"
+		} else if !isValidSemVer(reqData.AndroidLatestVersion) {
+			errors["android_latest_version"] = "Invalid Android version format! (expected x.y.z)"
+		}
+
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		// Pass validated struct forward
+		c.Locals("validatedMaintenance", reqData)
 		return c.Next()
 	}
 }
