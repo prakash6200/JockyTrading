@@ -1161,3 +1161,116 @@ func GetLatestMaintenance(c *fiber.Ctx) error {
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Latest maintenance record", maintenance)
 }
+
+func CreateReview(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// ✅ Get validated data
+	reqData, ok := c.Locals("validatedReview").(*struct {
+		Rating  int    `json:"rating"`
+		AmcId   uint   `json:"amcId"`
+		Comment string `json:"comment"`
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	var review models.Review
+
+	// ✅ Check if user already gave review for this AMC
+	err := database.Database.Db.Where("user_id = ? AND amc_id = ? AND is_deleted = false", userId, reqData.AmcId).
+		First(&review).Error
+
+	if err == nil {
+		// 🔄 Review exists → update it
+		review.Rating = reqData.Rating
+		review.Comment = reqData.Comment
+
+		if err := database.Database.Db.Save(&review).Error; err != nil {
+			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update review", nil)
+		}
+		return middleware.JsonResponse(c, fiber.StatusOK, true, "Review updated successfully", review)
+	}
+
+	// ➕ Review not found → create new one
+	newReview := models.Review{
+		UserID:  userId,
+		AmcId:   reqData.AmcId,
+		Rating:  reqData.Rating,
+		Comment: reqData.Comment,
+	}
+
+	if err := database.Database.Db.Create(&newReview).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to create review", nil)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusCreated, true, "Review created successfully", newReview)
+}
+
+func GetReviews(c *fiber.Ctx) error {
+	// ✅ Get validated data from middleware
+	reqData := c.Locals("validatedReviewList").(*struct {
+		Page  *int `json:"page"`
+		Limit *int `json:"limit"`
+		AmcId uint `json:"amcId"`
+	})
+
+	offset := (*reqData.Page - 1) * (*reqData.Limit)
+
+	var reviews []struct {
+		ID        uint   `json:"id"`
+		Rating    int    `json:"rating"`
+		Comment   string `json:"comment"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	// Fetch reviews
+	if err := database.Database.Db.
+		Table("reviews").
+		Where("reviews.amc_id = ? AND reviews.is_deleted = false", reqData.AmcId).
+		Offset(offset).
+		Limit(*reqData.Limit).
+		Scan(&reviews).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch reviews", nil)
+	}
+
+	// ✅ Total reviews count
+	var total int64
+	database.Database.Db.Model(&models.Review{}).
+		Where("amc_id = ? AND is_deleted = false", reqData.AmcId).
+		Count(&total)
+
+	// ✅ Average rating
+	var avgRating float64
+	database.Database.Db.
+		Table("reviews").
+		Where("amc_id = ? AND is_deleted = false", reqData.AmcId).
+		Select("COALESCE(AVG(rating),0)"). // ensures 0 if no reviews
+		Scan(&avgRating)
+
+	// Ensure empty array instead of null
+	if reviews == nil {
+		reviews = []struct {
+			ID        uint   `json:"id"`
+			Rating    int    `json:"rating"`
+			Comment   string `json:"comment"`
+			CreatedAt string `json:"created_at"`
+		}{}
+	}
+
+	// ✅ Response structure with avg rating
+	response := map[string]interface{}{
+		"reviews": reviews,
+		"pagination": map[string]interface{}{
+			"total": total,
+			"page":  *reqData.Page,
+			"limit": *reqData.Limit,
+		},
+		"average_rating": avgRating,
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Reviews list fetched successfully", response)
+}

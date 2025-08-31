@@ -23,4 +23,7 @@ func SetupUserRoutes(app *fiber.App) {
 
 	userGroup.Get("/amc/performance", userPorfileValidator.AmcPerformance(), middleware.JWTMiddleware, userProfileController.AmcPerformance)
 	userGroup.Get("/maintenance", userProfileController.GetLatestMaintenance)
+
+	userGroup.Post("/create/review", userPorfileValidator.ValidateReview(), middleware.JWTMiddleware, userProfileController.CreateReview)
+	userGroup.Get("/review", userPorfileValidator.ValidateReviewList(), middleware.JWTMiddleware, userProfileController.GetReviews)
 }

@@ -12,7 +12,7 @@ type User struct {
 	Name                  string    `gorm:"default:''"`
 	Email                 string    `gorm:"unique;not null"`
 	Mobile                string    `gorm:"default:''"`
-	Role                  string    `gorm:"default:'USER'"` // Default role is USER,
+	Role                  string    `gorm:"default:'USER'"` // Default role is USER, AMC, ADMIN,
 	Password              string    `gorm:"not null"`
 	BankDetails           uint      `gorm:"foreignKey:BankID"` // Corrected foreign key reference
 	UserKYC               uint      `gorm:"foreignKey:KycID"`  // Corrected foreign key reference

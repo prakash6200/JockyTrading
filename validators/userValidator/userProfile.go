@@ -356,3 +356,68 @@ func AmcPerformance() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func ValidateReview() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			Rating  int    `json:"rating"`
+			AmcId   uint   `json:"amcId"`
+			Comment string `json:"comment"`
+		})
+
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		if reqData.Rating < 1 || reqData.Rating > 5 {
+			errors["rating"] = "Rating must be between 1 and 5"
+		}
+		if reqData.AmcId < 1 {
+			errors["amcId"] = "amcId required!"
+		}
+		if len(reqData.Comment) < 3 {
+			errors["comment"] = "Comment must be at least 3 characters long"
+		}
+
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		c.Locals("validatedReview", reqData)
+		return c.Next()
+	}
+}
+
+func ValidateReviewList() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			Page  *int `json:"page"`
+			Limit *int `json:"limit"`
+			AmcId uint `json:"amcId"`
+		})
+
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		// ✅ Default values
+		if reqData.Page == nil || *reqData.Page < 1 {
+			defaultPage := 1
+			reqData.Page = &defaultPage
+		}
+		if reqData.Limit == nil || *reqData.Limit < 1 {
+			defaultLimit := 10
+			reqData.Limit = &defaultLimit
+		}
+
+		if reqData.AmcId == 0 {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "AMC Id is required", nil)
+		}
+
+		// ✅ Attach validated data
+		c.Locals("validatedReviewList", reqData)
+		return c.Next()
+	}
+}
