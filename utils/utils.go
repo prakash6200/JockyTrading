@@ -72,13 +72,13 @@ func SendOTPEmail(otp, email string) error {
 	}
 
 	// Email content
-	subject := "Subject: OTP Verification Code for Jockey Trading\nMIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
+	subject := "Subject: OTP Verification Code for Classia Capital\nMIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 
 	body := fmt.Sprintf(`
 		<html>
 			<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
 				<div style="max-width: 500px; margin: auto; background-color: #ffffff; border-radius: 8px; padding: 30px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
-					<h2 style="color: #333333; text-align: center;">Jockey Trading OTP Verification</h2>
+					<h2 style="color: #333333; text-align: center;">Classia Capital OTP Verification</h2>
 					<p style="font-size: 16px; color: #555555; text-align: center;">Your One Time Password (OTP) is:</p>
 					<h1 style="text-align: center; color: #4CAF50; font-size: 40px; margin: 20px 0;">%s</h1>
 					<p style="font-size: 14px; color: #999999; text-align: center;">Do not share this OTP with anyone.</p>

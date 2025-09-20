@@ -429,7 +429,7 @@ func VerifyAdharOtp(c *fiber.Ctx) error {
 	}
 	if len(validationErrors) > 0 {
 		log.Printf("Validation failed: %v, Response Data: %+v", validationErrors, response.Data)
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, fmt.Sprintf("Invalid or incomplete Aadhaar data from API: %s", strings.Join(validationErrors, "; ")), nil)
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Failed To verify", nil)
 	}
 
 	// Convert reference_id to string
