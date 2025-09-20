@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/smtp"
-	"net/url"
 	"time"
 )
 
@@ -22,27 +21,33 @@ func GenerateOTP() string {
 }
 
 func SendOTPToMobile(mobile, otp string) error {
-	// Construct the SMS message
-	smsMsg := fmt.Sprintf("OTP for Credbull App Registration is %s. Do not share it with anyone.", otp)
+	// Replace with your own values
+	apiKey := "0Opfk6PHdUBWhVy18bqGFSecsturJMjCInm5TiD24wZKAv9QlRKl1iZgMwt8peuNC47P5nFsABj3D29E"
+	senderID := "CLASIA"
+	messageID := "197302" // DLT Template ID
+	flash := "0"
 
-	data := url.Values{}
-	data.Set("apikey", config.AppConfig.LocalTextApi) // Replace with your actual API key
-	data.Set("numbers", mobile)
-	data.Set("sender", "CRDBUL")
-	data.Set("message", smsMsg)
+	// Variables (OTP and validity time in minutes)
+	variables := fmt.Sprintf("%s|10", otp)
 
-	// Make the API request
-	resp, err := http.PostForm(config.AppConfig.LocalTextApiUrl, data)
+	// Build request URL
+	url := fmt.Sprintf(
+		"https://www.fast2sms.com/dev/bulkV2?authorization=%s&route=dlt&sender_id=%s&message=%s&variables_values=%s&flash=%s&numbers=%s",
+		apiKey, senderID, messageID, variables, flash, mobile,
+	)
+
+	// Make GET request
+	resp, err := http.Get(url)
 	if err != nil {
 		log.Printf("Error while sending OTP: %v", err)
 		return err
 	}
 	defer resp.Body.Close()
 
-	// Check if the response status code is not OK
+	// Check if response is OK
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Failed to send OTP, response code: %d", resp.StatusCode)
-		return fmt.Errorf("failed to send OTP")
+		return fmt.Errorf("failed to send OTP, code: %d", resp.StatusCode)
 	}
 
 	log.Println("OTP sent successfully to", mobile)

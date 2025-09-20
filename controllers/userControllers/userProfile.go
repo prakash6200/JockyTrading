@@ -552,6 +552,7 @@ func PanLinkStatus(c *fiber.Ctx) error {
 		AadhaarNumber string `json:"aadhaarNumber"`
 		PanNumber     string `json:"panNumber"`
 	})
+
 	if err := c.BodyParser(reqData); err != nil {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
 	}
