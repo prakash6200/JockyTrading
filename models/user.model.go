@@ -21,6 +21,8 @@ type User struct {
 	MainBalance           uint      `gorm:"default:0"`
 	LastLogin             time.Time `gorm:"default:NULL"`
 	PanNumber             string
+	IsAdharVerified       bool `gorm:"default:false"`
+	IsPanVerified         bool `gorm:"default:false"`
 	Address               string
 	City                  string
 	State                 string

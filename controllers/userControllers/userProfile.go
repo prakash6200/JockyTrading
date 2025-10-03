@@ -535,6 +535,12 @@ func VerifyAdharOtp(c *fiber.Ctx) error {
 		}
 	}
 
+	if err := database.Database.Db.Model(&user).
+		Update("is_adhar_verified", true).Error; err != nil {
+		log.Printf("Failed to update user Aadhaar verification flag: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update user Aadhaar verification status!", nil)
+	}
+
 	// Return success response
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Aadhaar OTP verified and details saved successfully.", nil)
 }
@@ -705,6 +711,12 @@ func PanLinkStatus(c *fiber.Ctx) error {
 			return middleware.JsonResponse(c, fiber.StatusConflict, false, "Aadhaar or PAN number already exists!", nil)
 		}
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to save KYC details!", nil)
+	}
+
+	if err := database.Database.Db.Model(&user).
+		Update("is_pan_verified", true).Error; err != nil {
+		log.Printf("Failed to update user Pan verification flag: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update user Pan verification status!", nil)
 	}
 
 	// Return success response
