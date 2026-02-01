@@ -4,6 +4,7 @@ import (
 	"fib/database"
 	"fib/middleware"
 	"fib/models"
+	courseModels "fib/models/course"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -28,8 +29,8 @@ func GetAllCourses(c *fiber.Ctx) error {
 	})
 	if !ok {
 		// If no pagination validator is set, proceed without pagination
-		var courses []models.Course
-		if err := database.Database.Db.Where("is_deleted = ?", false).Find(&courses).Error; err != nil {
+		var courses []courseModels.Course
+		if err := database.Database.Db.Where("is_deleted = ? AND is_published = ?", false, true).Find(&courses).Error; err != nil {
 			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch courses!", nil)
 		}
 		return middleware.JsonResponse(c, fiber.StatusOK, true, "Courses fetched successfully!", fiber.Map{
@@ -49,8 +50,8 @@ func GetAllCourses(c *fiber.Ctx) error {
 	offset := (page - 1) * limit
 
 	// Fetch courses with pagination
-	var courses []models.Course
-	db := database.Database.Db.Model(&models.Course{}).Where("is_deleted = ?", false)
+	var courses []courseModels.Course
+	db := database.Database.Db.Model(&courseModels.Course{}).Where("is_deleted = ? AND is_published = ?", false, true)
 
 	// Get total count
 	var total int64
@@ -99,7 +100,7 @@ func CreateCourse(c *fiber.Ctx) error {
 	}
 
 	// Create new course
-	course := models.Course{
+	course := courseModels.Course{
 		Title:       reqData.Title,
 		Description: reqData.Description,
 		Author:      reqData.Author,

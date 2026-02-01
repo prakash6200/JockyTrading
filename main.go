@@ -46,6 +46,7 @@ func main() {
 	amcRoutes.AMCProfileRoutes(app)
 	amcRoutes.SetupAMCPredictionRoutes(app)
 	courseRoutes.SetupCourseRoutes(app)
+	courseRoutes.SetupAdminCourseRoutes(app)
 	supportRoutes.SetupSupportRoutes(app)
 
 	// startCron()

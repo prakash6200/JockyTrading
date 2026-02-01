@@ -95,21 +95,14 @@ func CourseContentList() fiber.Handler {
 			})
 		}
 
-		errors := make(map[string]string)
-
-		// Validate Page
+		// Set defaults if not provided
+		defaultPage := 1
+		defaultLimit := 10
 		if reqData.Page == nil || *reqData.Page < 1 {
-			errors["page"] = "Page must be greater than 0!"
+			reqData.Page = &defaultPage
 		}
-
-		// Validate Limit
 		if reqData.Limit == nil || *reqData.Limit < 1 {
-			errors["limit"] = "Limit must be greater than 0!"
-		}
-
-		// Respond with validation errors if any exist
-		if len(errors) > 0 {
-			return middleware.ValidationErrorResponse(c, errors)
+			reqData.Limit = &defaultLimit
 		}
 
 		c.Locals("validatedCourseContentList", reqData)
@@ -187,6 +180,119 @@ func GetContentCompletions() fiber.Handler {
 
 		c.Locals("courseID", courseID)
 		c.Locals("validatedCompletionList", reqData)
+		return c.Next()
+	}
+}
+
+// GetCourseDetail validates course detail request
+func GetCourseDetail() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		courseIDStr := strings.TrimSpace(c.Params("id"))
+		if courseIDStr == "" {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Course ID is required!", nil)
+		}
+
+		courseID, err := strconv.Atoi(courseIDStr)
+		if err != nil || courseID <= 0 {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid Course ID!", nil)
+		}
+
+		c.Locals("courseID", courseID)
+		return c.Next()
+	}
+}
+
+// GetDayContent validates day content request
+func GetDayContent() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		courseIDStr := strings.TrimSpace(c.Params("course_id"))
+		moduleIDStr := strings.TrimSpace(c.Params("module_id"))
+		dayStr := strings.TrimSpace(c.Params("day"))
+
+		if courseIDStr == "" || moduleIDStr == "" || dayStr == "" {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Course ID, Module ID, and Day are required!", nil)
+		}
+
+		courseID, err := strconv.Atoi(courseIDStr)
+		if err != nil || courseID <= 0 {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid Course ID!", nil)
+		}
+
+		moduleID, err := strconv.Atoi(moduleIDStr)
+		if err != nil || moduleID <= 0 {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid Module ID!", nil)
+		}
+
+		day, err := strconv.Atoi(dayStr)
+		if err != nil || day < 1 {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid Day number!", nil)
+		}
+
+		c.Locals("courseID", courseID)
+		c.Locals("moduleID", moduleID)
+		c.Locals("day", day)
+		return c.Next()
+	}
+}
+
+// SubmitMCQ validates MCQ submission request
+func SubmitMCQ() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		courseIDStr := strings.TrimSpace(c.Params("course_id"))
+		contentIDStr := strings.TrimSpace(c.Params("content_id"))
+
+		if courseIDStr == "" || contentIDStr == "" {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Course ID and Content ID are required!", nil)
+		}
+
+		courseID, err := strconv.Atoi(courseIDStr)
+		if err != nil || courseID <= 0 {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid Course ID!", nil)
+		}
+
+		contentID, err := strconv.Atoi(contentIDStr)
+		if err != nil || contentID <= 0 {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid Content ID!", nil)
+		}
+
+		c.Locals("courseID", courseID)
+		c.Locals("contentID", contentID)
+		return c.Next()
+	}
+}
+
+// GetCourseProgress validates progress request
+func GetCourseProgress() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		courseIDStr := strings.TrimSpace(c.Params("course_id"))
+		if courseIDStr == "" {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Course ID is required!", nil)
+		}
+
+		courseID, err := strconv.Atoi(courseIDStr)
+		if err != nil || courseID <= 0 {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid Course ID!", nil)
+		}
+
+		c.Locals("courseID", courseID)
+		return c.Next()
+	}
+}
+
+// RequestCertificateValidator validates certificate request
+func RequestCertificateValidator() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		courseIDStr := strings.TrimSpace(c.Params("course_id"))
+		if courseIDStr == "" {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Course ID is required!", nil)
+		}
+
+		courseID, err := strconv.Atoi(courseIDStr)
+		if err != nil || courseID <= 0 {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid Course ID!", nil)
+		}
+
+		c.Locals("courseID", courseID)
 		return c.Next()
 	}
 }

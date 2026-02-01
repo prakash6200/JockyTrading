@@ -2,6 +2,7 @@ package database
 
 import (
 	"fib/models"
+	course "fib/models/course"
 	"fmt"
 	"log"
 	"os"
@@ -80,11 +81,16 @@ func runMigrations(db *gorm.DB) {
 		&models.Folio{},
 		&models.StockPrices{},
 		&models.Permission{},
-		&models.Course{},
-		&models.CourseContent{},
+		&course.Course{},
+		&course.Module{},
+		&course.CourseContent{},
+		&course.MCQOption{},
+		&course.MCQAttempt{},
 		&models.SupportTicket{},
-		&models.Enrollment{},
-		&models.ContentCompletion{},
+		&course.Enrollment{},
+		&course.ContentCompletion{},
+		&course.CertificateRequest{},
+		&course.Certificate{},
 		&models.Maintenance{},
 		&models.Review{},
 	)

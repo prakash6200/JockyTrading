@@ -4,6 +4,7 @@ import (
 	"fib/database"
 	"fib/middleware"
 	"fib/models"
+	courseModels "fib/models/course"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -32,8 +33,8 @@ func GetCourseContent(c *fiber.Ctx) error {
 	})
 	if !ok {
 		// If no pagination validator is set, proceed without pagination
-		var contents []models.CourseContent
-		if err := database.Database.Db.Where("course_id = ? AND is_deleted = ?", courseID, false).Find(&contents).Error; err != nil {
+		var contents []courseModels.CourseContent
+		if err := database.Database.Db.Where("course_id = ? AND is_deleted = ? AND is_published = ?", courseID, false, true).Find(&contents).Error; err != nil {
 			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch course content!", nil)
 		}
 		return middleware.JsonResponse(c, fiber.StatusOK, true, "Course content fetched successfully!", fiber.Map{
@@ -53,15 +54,15 @@ func GetCourseContent(c *fiber.Ctx) error {
 	offset := (page - 1) * limit
 
 	// Fetch course content with pagination
-	var contents []models.CourseContent
-	db := database.Database.Db.Model(&models.CourseContent{}).Where("course_id = ? AND is_deleted = ?", courseID, false)
+	var contents []courseModels.CourseContent
+	db := database.Database.Db.Model(&courseModels.CourseContent{}).Where("course_id = ? AND is_deleted = ? AND is_published = ?", courseID, false, true)
 
 	// Get total count
 	var total int64
 	db.Count(&total)
 
 	// Fetch paginated data
-	if err := db.Offset(offset).Limit(limit).Order("created_at desc").Find(&contents).Error; err != nil {
+	if err := db.Offset(offset).Limit(limit).Order("order_index asc").Find(&contents).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch course content!", nil)
 	}
 
@@ -98,7 +99,7 @@ func CreateCourseContent(c *fiber.Ctx) error {
 	}
 
 	// Check if course exists
-	var course models.Course
+	var course courseModels.Course
 	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", courseID, false).First(&course).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Course not found!", nil)
 	}
@@ -113,7 +114,7 @@ func CreateCourseContent(c *fiber.Ctx) error {
 	}
 
 	// Create new course content
-	content := models.CourseContent{
+	content := courseModels.CourseContent{
 		CourseID:    uint(courseID),
 		Title:       reqData.Title,
 		Description: reqData.Description,
@@ -145,31 +146,31 @@ func MarkContentComplete(c *fiber.Ctx) error {
 	contentID := c.Locals("contentID").(int)
 
 	// Check if course exists and is active
-	var course models.Course
-	if err := database.Database.Db.Where("id = ? AND is_deleted = ? AND status = ?", courseID, false, "ACTIVE").First(&course).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Course not found or not active!", nil)
+	var course courseModels.Course
+	if err := database.Database.Db.Where("id = ? AND is_deleted = ? AND is_published = ?", courseID, false, true).First(&course).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Course not found or not published!", nil)
 	}
 
 	// Check if course content exists
-	var content models.CourseContent
-	if err := database.Database.Db.Where("id = ? AND course_id = ? AND is_deleted = ?", contentID, courseID, false).First(&content).Error; err != nil {
+	var content courseModels.CourseContent
+	if err := database.Database.Db.Where("id = ? AND course_id = ? AND is_deleted = ? AND is_published = ?", contentID, courseID, false, true).First(&content).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Course content not found!", nil)
 	}
 
 	// Check if user is enrolled in the course
-	var enrollment models.Enrollment
+	var enrollment courseModels.Enrollment
 	if err := database.Database.Db.Where("user_id = ? AND course_id = ? AND is_deleted = ?", userID, courseID, false).First(&enrollment).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusForbidden, false, "User not enrolled in this course!", nil)
 	}
 
 	// Check if content is already marked as completed
-	var existingCompletion models.ContentCompletion
+	var existingCompletion courseModels.ContentCompletion
 	if err := database.Database.Db.Where("user_id = ? AND course_id = ? AND course_content_id = ? AND is_deleted = ?", userID, courseID, contentID, false).First(&existingCompletion).Error; err == nil {
 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Content already marked as completed!", nil)
 	}
 
 	// Create completion record
-	completion := models.ContentCompletion{
+	completion := courseModels.ContentCompletion{
 		UserID:          userID,
 		CourseID:        uint(courseID),
 		CourseContentID: uint(contentID),
@@ -183,6 +184,9 @@ func MarkContentComplete(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to mark content as completed!", nil)
 	}
 	tx.Commit()
+
+	// Update enrollment progress
+	updateEnrollmentProgress(userID, uint(courseID))
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Content marked as completed successfully!", completion)
 }
@@ -203,14 +207,14 @@ func GetContentCompletions(c *fiber.Ctx) error {
 	// Retrieve validated course ID
 	courseID := c.Locals("courseID").(int)
 
-	// Check if course exists and is active
-	var course models.Course
-	if err := database.Database.Db.Where("id = ? AND is_deleted = ? AND status = ?", courseID, false, "ACTIVE").First(&course).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Course not found or not active!", nil)
+	// Check if course exists and is published
+	var course courseModels.Course
+	if err := database.Database.Db.Where("id = ? AND is_deleted = ? AND is_published = ?", courseID, false, true).First(&course).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Course not found or not published!", nil)
 	}
 
 	// Check if user is enrolled
-	var enrollment models.Enrollment
+	var enrollment courseModels.Enrollment
 	if err := database.Database.Db.Where("user_id = ? AND course_id = ? AND is_deleted = ?", userID, courseID, false).First(&enrollment).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusForbidden, false, "User not enrolled in this course!", nil)
 	}
@@ -222,8 +226,8 @@ func GetContentCompletions(c *fiber.Ctx) error {
 	})
 	if !ok {
 		// Fetch all completions without pagination
-		var completions []models.ContentCompletion
-		if err := database.Database.Db.Where("user_id = ? AND course_id = ? AND is_deleted = ?", userID, courseID, false).Preload("CourseContent").Find(&completions).Error; err != nil {
+		var completions []courseModels.ContentCompletion
+		if err := database.Database.Db.Where("user_id = ? AND course_id = ? AND is_deleted = ?", userID, courseID, false).Find(&completions).Error; err != nil {
 			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch completions!", nil)
 		}
 
@@ -244,8 +248,8 @@ func GetContentCompletions(c *fiber.Ctx) error {
 	offset := (page - 1) * limit
 
 	// Fetch completions with pagination
-	var completions []models.ContentCompletion
-	db := database.Database.Db.Model(&models.ContentCompletion{}).Where("user_id = ? AND course_id = ? AND is_deleted = ?", userID, courseID, false).Preload("CourseContent")
+	var completions []courseModels.ContentCompletion
+	db := database.Database.Db.Model(&courseModels.ContentCompletion{}).Where("user_id = ? AND course_id = ? AND is_deleted = ?", userID, courseID, false)
 
 	// Get total count
 	var total int64
