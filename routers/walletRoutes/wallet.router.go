@@ -18,6 +18,8 @@ func SetupWalletRoutes(app *fiber.App) {
 
 	// Admin routes
 	adminGroup := walletGroup.Group("/admin")
+	adminGroup.Get("/stats", middleware.JWTMiddleware, walletController.GetWalletStats)
+	adminGroup.Get("/transactions", middleware.JWTMiddleware, walletController.GetAllTransactions)
 	adminGroup.Post("/add-balance", walletValidator.AddBalance(), middleware.JWTMiddleware, walletController.AddBalance)
 	adminGroup.Post("/deduct-balance", walletValidator.DeductBalance(), middleware.JWTMiddleware, walletController.DeductBalance)
 	adminGroup.Get("/user-balance", middleware.JWTMiddleware, walletController.GetUserBalance)

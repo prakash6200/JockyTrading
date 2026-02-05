@@ -416,8 +416,9 @@ func GetUserWalletHistory(c *fiber.Ctx) error {
 	})
 }
 
-// RecordSubscriptionTransaction records a subscription deduction (called from subscribe function)
+// Helper function... (omitted, will be kept)
 func RecordSubscriptionTransaction(db any, userId uint, amount float64, balanceBefore float64, basketId uint, basketName string) error {
+	// ... (content same as before, just placeholder for context)
 	gormDb := db.(*database.DbInstance).Db
 
 	transaction := models.WalletTransaction{
@@ -435,4 +436,134 @@ func RecordSubscriptionTransaction(db any, userId uint, amount float64, balanceB
 	}
 
 	return gormDb.Create(&transaction).Error
+}
+
+// GetWalletStats returns overall wallet statistics for admin dashboard
+func GetWalletStats(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! Admin role required.", nil)
+	}
+
+	db := database.Database.Db
+
+	// Total deposits
+	var totalDeposits float64
+	db.Model(&models.WalletTransaction{}).
+		Where("transaction_type = ? AND status = ? AND is_deleted = false", models.TransactionTypeDeposit, models.TransactionStatusCompleted).
+		Select("COALESCE(SUM(amount), 0)").Scan(&totalDeposits)
+
+	// Total withdrawals/subscriptions (money spent)
+	var totalSpent float64
+	db.Model(&models.WalletTransaction{}).
+		Where("transaction_type IN ? AND status = ? AND is_deleted = false", []models.TransactionType{models.TransactionTypeWithdrawal, models.TransactionTypeSubscription}, models.TransactionStatusCompleted).
+		Select("COALESCE(SUM(amount), 0)").Scan(&totalSpent)
+
+	// Current total user balance (liability)
+	var totalUserBalance float64
+	db.Model(&models.User{}).Where("role = ? AND is_deleted = false", "USER").Select("COALESCE(SUM(main_balance), 0)").Scan(&totalUserBalance)
+
+	// Transaction counts
+	var depositCount, subscriptionCount int64
+	db.Model(&models.WalletTransaction{}).Where("transaction_type = ? AND is_deleted = false", models.TransactionTypeDeposit).Count(&depositCount)
+	db.Model(&models.WalletTransaction{}).Where("transaction_type = ? AND is_deleted = false", models.TransactionTypeSubscription).Count(&subscriptionCount)
+
+	// Recent transactions count (last 24h)
+	var recentTransactions int64
+	yesterday := time.Now().Add(-24 * time.Hour)
+	db.Model(&models.WalletTransaction{}).Where("transaction_date >= ? AND is_deleted = false", yesterday).Count(&recentTransactions)
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Wallet stats fetched!", fiber.Map{
+		"financials": fiber.Map{
+			"totalDeposits":    totalDeposits,
+			"totalSpent":       totalSpent,
+			"totalUserBalance": totalUserBalance,
+			"netRevenue":       totalSpent, // Assuming spent on subscriptions = revenue
+		},
+		"counts": fiber.Map{
+			"deposits":           depositCount,
+			"subscriptions":      subscriptionCount,
+			"recentTransactions": recentTransactions,
+		},
+	})
+}
+
+// GetAllTransactions returns all transactions system-wide (Admin only)
+func GetAllTransactions(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! Admin role required.", nil)
+	}
+
+	// Parse query params
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	txnType := c.Query("type")
+	userIdFilter := c.QueryInt("userId", 0)
+	search := c.Query("search")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	db := database.Database.Db
+
+	query := db.Model(&models.WalletTransaction{}).Where("is_deleted = false")
+
+	// Filters
+	if txnType != "" {
+		query = query.Where("transaction_type = ?", txnType)
+	}
+	if userIdFilter > 0 {
+		query = query.Where("user_id = ?", userIdFilter)
+	}
+	if search != "" {
+		query = query.Where("description ILIKE ? OR payment_id ILIKE ? OR payment_gateway ILIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%")
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var transactions []models.WalletTransaction
+	if err := query.
+		Preload("User").
+		Order("transaction_date DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&transactions).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch transactions!", nil)
+	}
+
+	// Transform data to include user name/email cleanly
+	type TransactionWithUser struct {
+		models.WalletTransaction
+		UserName  string `json:"userName"`
+		UserEmail string `json:"userEmail"`
+	}
+
+	var result []TransactionWithUser
+	for _, txn := range transactions {
+		result = append(result, TransactionWithUser{
+			WalletTransaction: txn,
+			UserName:          txn.User.Name,
+			UserEmail:         txn.User.Email,
+		})
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "All transactions fetched!", fiber.Map{
+		"transactions": result,
+		"pagination": fiber.Map{
+			"total": total,
+			"page":  page,
+			"limit": limit,
+		},
+	})
 }

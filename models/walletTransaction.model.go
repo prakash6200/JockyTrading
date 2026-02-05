@@ -11,7 +11,7 @@ type TransactionType string
 
 const (
 	TransactionTypeDeposit      TransactionType = "DEPOSIT"
-	TransactionTypeWithdraw     TransactionType = "WITHDRAW"
+	TransactionTypeWithdrawal   TransactionType = "WITHDRAWAL"
 	TransactionTypeSubscription TransactionType = "SUBSCRIPTION"
 	TransactionTypeRefund       TransactionType = "REFUND"
 	TransactionTypeAdminCredit  TransactionType = "ADMIN_CREDIT"
