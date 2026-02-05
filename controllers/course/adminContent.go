@@ -384,7 +384,13 @@ func AdminDeleteMCQOption(c *fiber.Ctx) error {
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "MCQ option deleted successfully!", nil)
 }
 
-// AdminGetModuleContent gets all content for a module organized by day
+// AdminContentWithMCQ represents admin content with MCQ options
+type AdminContentWithMCQ struct {
+	courseModels.CourseContent
+	MCQOptions []courseModels.MCQOption `json:"mcq_options,omitempty"`
+}
+
+// AdminGetModuleContent gets all content for a module organized by day with MCQ options
 func AdminGetModuleContent(c *fiber.Ctx) error {
 	userId, ok := c.Locals("userId").(uint)
 	if !ok {
@@ -414,9 +420,24 @@ func AdminGetModuleContent(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch content!", nil)
 	}
 
+	// Enrich contents with MCQ options
+	enrichedContents := make([]AdminContentWithMCQ, len(contents))
+	for i, content := range contents {
+		enrichedContents[i] = AdminContentWithMCQ{
+			CourseContent: content,
+		}
+
+		// Get MCQ options if content is MCQ type
+		if content.ContentType == "MCQ" {
+			var options []courseModels.MCQOption
+			database.Database.Db.Where("content_id = ? AND is_deleted = ?", content.ID, false).Order("order_index asc").Find(&options)
+			enrichedContents[i].MCQOptions = options
+		}
+	}
+
 	// Group by day
-	contentByDay := make(map[int][]courseModels.CourseContent)
-	for _, content := range contents {
+	contentByDay := make(map[int][]AdminContentWithMCQ)
+	for _, content := range enrichedContents {
 		contentByDay[content.Day] = append(contentByDay[content.Day], content)
 	}
 

@@ -6,10 +6,13 @@ import (
 	"fib/database"
 	amcRoutes "fib/routers/amcRoutes"
 	authRoutes "fib/routers/authRoutes"
+	basketRoutes "fib/routers/basketRoutes"
 	courseRoutes "fib/routers/courseRoutes"
 	superAdminRoutes "fib/routers/superAdmin"
 	supportRoutes "fib/routers/supportRoutes"
 	userProfileRoutes "fib/routers/userRoutes"
+	walletRoutes "fib/routers/walletRoutes"
+	"fib/utils"
 
 	"log"
 
@@ -48,6 +51,17 @@ func main() {
 	courseRoutes.SetupCourseRoutes(app)
 	courseRoutes.SetupAdminCourseRoutes(app)
 	supportRoutes.SetupSupportRoutes(app)
+
+	// Basket routes
+	basketRoutes.SetupAMCBasketRoutes(app)
+	basketRoutes.SetupAdminBasketRoutes(app)
+	basketRoutes.SetupUserBasketRoutes(app)
+
+	// Wallet routes
+	walletRoutes.SetupWalletRoutes(app)
+
+	// Start basket scheduler for auto-publish/expire
+	utils.InitializeBasketSchedulers()
 
 	// startCron()
 

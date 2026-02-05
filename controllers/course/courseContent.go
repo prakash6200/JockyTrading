@@ -10,6 +10,13 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// ContentWithMCQ represents content with MCQ options
+type ContentWithMCQ struct {
+	courseModels.CourseContent
+	MCQOptions  []courseModels.MCQOption `json:"mcq_options,omitempty"`
+	IsCompleted bool                     `json:"is_completed"`
+}
+
 func GetCourseContent(c *fiber.Ctx) error {
 	// Retrieve userId from JWT middleware
 	userId, ok := c.Locals("userId").(uint)
@@ -26,49 +33,84 @@ func GetCourseContent(c *fiber.Ctx) error {
 	// Retrieve validated course ID
 	courseID, _ := strconv.Atoi(c.Locals("courseID").(string))
 
+	// Get optional filters from query params
+	moduleIDStr := c.Query("module_id")
+	dayStr := c.Query("day")
+	contentType := c.Query("content_type")
+
 	// Retrieve validated pagination request
-	reqData, ok := c.Locals("validatedCourseContentList").(*struct {
+	reqData, _ := c.Locals("validatedCourseContentList").(*struct {
 		Page  *int `json:"page"`
 		Limit *int `json:"limit"`
 	})
-	if !ok {
-		// If no pagination validator is set, proceed without pagination
-		var contents []courseModels.CourseContent
-		if err := database.Database.Db.Where("course_id = ? AND is_deleted = ? AND is_published = ?", courseID, false, true).Find(&contents).Error; err != nil {
-			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch course content!", nil)
-		}
-		return middleware.JsonResponse(c, fiber.StatusOK, true, "Course content fetched successfully!", fiber.Map{
-			"contents": contents,
-		})
-	}
 
 	// Set default pagination
 	page := 1
 	limit := 10
-	if reqData.Page != nil {
+	if reqData != nil && reqData.Page != nil {
 		page = *reqData.Page
 	}
-	if reqData.Limit != nil {
+	if reqData != nil && reqData.Limit != nil {
 		limit = *reqData.Limit
 	}
 	offset := (page - 1) * limit
 
-	// Fetch course content with pagination
-	var contents []courseModels.CourseContent
+	// Build query with filters
 	db := database.Database.Db.Model(&courseModels.CourseContent{}).Where("course_id = ? AND is_deleted = ? AND is_published = ?", courseID, false, true)
+
+	// Apply optional filters
+	if moduleIDStr != "" {
+		if moduleID, err := strconv.Atoi(moduleIDStr); err == nil && moduleID > 0 {
+			db = db.Where("module_id = ?", moduleID)
+		}
+	}
+	if dayStr != "" {
+		if day, err := strconv.Atoi(dayStr); err == nil && day > 0 {
+			db = db.Where("day = ?", day)
+		}
+	}
+	if contentType != "" {
+		db = db.Where("content_type = ?", contentType)
+	}
 
 	// Get total count
 	var total int64
 	db.Count(&total)
 
 	// Fetch paginated data
-	if err := db.Offset(offset).Limit(limit).Order("order_index asc").Find(&contents).Error; err != nil {
+	var contents []courseModels.CourseContent
+	if err := db.Offset(offset).Limit(limit).Order("module_id asc, day asc, order_index asc").Find(&contents).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch course content!", nil)
+	}
+
+	// Enrich contents with MCQ options and completion status
+	result := make([]ContentWithMCQ, len(contents))
+	for i, content := range contents {
+		result[i] = ContentWithMCQ{
+			CourseContent: content,
+		}
+
+		// Check if completed by user
+		var completion courseModels.ContentCompletion
+		if err := database.Database.Db.Where("user_id = ? AND course_content_id = ? AND is_deleted = ?", userId, content.ID, false).First(&completion).Error; err == nil {
+			result[i].IsCompleted = true
+		}
+
+		// Get MCQ options if content is MCQ type
+		if content.ContentType == "MCQ" {
+			var options []courseModels.MCQOption
+			database.Database.Db.Where("content_id = ? AND is_deleted = ?", content.ID, false).Order("order_index asc").Find(&options)
+			// Remove IsCorrect from options for users (don't show answers)
+			for j := range options {
+				options[j].IsCorrect = false
+			}
+			result[i].MCQOptions = options
+		}
 	}
 
 	// Prepare response
 	response := map[string]interface{}{
-		"contents": contents,
+		"contents": result,
 		"pagination": map[string]interface{}{
 			"total": total,
 			"page":  page,

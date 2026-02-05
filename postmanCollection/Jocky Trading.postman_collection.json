@@ -1,0 +1,3871 @@
+{
+  "info": {
+    "_postman_id": "104b2941-340b-4ce8-b703-e27d76936148",
+    "name": "Jocky Trading",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "46942410",
+    "_collection_link": "https://go.postman.co/collection/46942410-104b2941-340b-4ce8-b703-e27d76936148?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Singup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "mobile",
+                  "value": "6200134790",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "12345678",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "prakashk@gmail.com",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "prakash",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/auth/signup",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "signup"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonResponse = pm.response.json();",
+                  "",
+                  "// Extract the token from the response",
+                  "var jwtToken = jsonResponse.data.token;",
+                  "",
+                  "// Set the token as an environment variable",
+                  "pm.environment.set(\"jwtToken\", jwtToken);pm.test(\"Response status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Extract the token from the response and set it as an environment variable",
+                  "var jwtToken = pm.response.json().data.token;",
+                  "pm.environment.set(\"jwtToken\", jwtToken);"
+                ],
+                "type": "text/javascript",
+                "packages": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "email",
+                  "value": "prakashkrw630@gmail.com",
+                  "type": "text",
+                  "disabled": true
+                },
+                {
+                  "key": "mobile",
+                  "value": "6200134797",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "12345678",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/auth/login",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login Otp",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonResponse = pm.response.json();",
+                  "",
+                  "// Extract the token from the response",
+                  "var jwtToken = jsonResponse.data.token;",
+                  "",
+                  "// Set the token as an environment variable",
+                  "pm.environment.set(\"jwtToken\", jwtToken);pm.test(\"Response status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Extract the token from the response and set it as an environment variable",
+                  "var jwtToken = pm.response.json().data.token;",
+                  "pm.environment.set(\"jwtToken\", jwtToken);"
+                ],
+                "type": "text/javascript",
+                "packages": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "email",
+                  "value": "prakashkr2609@gmail.com",
+                  "type": "text"
+                },
+                {
+                  "key": "mobile",
+                  "value": "6200134797",
+                  "type": "text",
+                  "disabled": true
+                },
+                {
+                  "key": "password",
+                  "value": "12345678",
+                  "type": "text",
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/auth/login-otp",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "login-otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Login Otp",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonResponse = pm.response.json();",
+                  "",
+                  "// Extract the token from the response",
+                  "var jwtToken = jsonResponse.data.token;",
+                  "",
+                  "// Set the token as an environment variable",
+                  "pm.environment.set(\"jwtToken\", jwtToken);pm.test(\"Response status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Extract the token from the response and set it as an environment variable",
+                  "var jwtToken = pm.response.json().data.token;",
+                  "pm.environment.set(\"jwtToken\", jwtToken);"
+                ],
+                "type": "text/javascript",
+                "packages": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "email",
+                  "value": "prakashkr2609@gmail.com",
+                  "type": "text"
+                },
+                {
+                  "key": "mobile",
+                  "value": "6200134797",
+                  "type": "text",
+                  "disabled": true
+                },
+                {
+                  "key": "code",
+                  "value": "747452",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/auth/verify-login-otp",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "verify-login-otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login HIstory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {}
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{host}}/auth/login/history?limit=10&page=1",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send OTP Mobile/Email",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "mobile",
+                  "value": "6200134797",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "prakaskrw60@gmail.com",
+                  "type": "text",
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/auth/send/otp",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "send",
+                "otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP Mobile/Email",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "mobile",
+                  "value": "6200134797",
+                  "type": "text"
+                },
+                {
+                  "key": "code",
+                  "value": "806019",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "prakaskrw60@gmail.com",
+                  "type": "text",
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/auth/verify/otp",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "verify",
+                "otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot password send otp",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "mobile",
+                  "value": "6200134797",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/auth/forgot/password/send/otp",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "forgot",
+                "password",
+                "send",
+                "otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot password Verify OTP",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "mobile",
+                  "value": "6200134797",
+                  "type": "text"
+                },
+                {
+                  "key": "code",
+                  "value": "550616",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/auth/forgot/password/verify/otp",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "forgot",
+                "password",
+                "verify",
+                "otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MzcxOTU1OTQsImlhdCI6MTczNzEwOTE5NCwibmFtZSI6IlByYWthc2gga3VtYXIiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6Nn0.pLoMmBtAfgzykZXFuLpDA0ugsrWRWC3yqBlFbmwbd40"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "password",
+                  "value": "1234567890",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/auth/reset/password",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "reset",
+                "password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Current password",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MzcxOTU1OTQsImlhdCI6MTczNzEwOTE5NCwibmFtZSI6IlByYWthc2gga3VtYXIiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6Nn0.pLoMmBtAfgzykZXFuLpDA0ugsrWRWC3yqBlFbmwbd40"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "currentPassword",
+                  "value": "12345568",
+                  "type": "text"
+                },
+                {
+                  "key": "newPassword",
+                  "value": "12345678",
+                  "type": "text"
+                },
+                {
+                  "key": "cnfPassword",
+                  "value": "12345678",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/auth/change/login/password",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "change",
+                "login",
+                "password"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User Profile",
+      "item": [
+        {
+          "name": "Add Bank Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "bankName",
+                  "value": "PNB",
+                  "type": "text"
+                },
+                {
+                  "key": "accountNo",
+                  "value": "6485000100100943",
+                  "type": "text"
+                },
+                {
+                  "key": "holderName",
+                  "value": "Prakash kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "ifscCode",
+                  "value": "PUNB0648500",
+                  "type": "text"
+                },
+                {
+                  "key": "branchName",
+                  "value": "Sasaram",
+                  "type": "text"
+                },
+                {
+                  "key": "accountType",
+                  "value": "savings",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/user/add/bank/account",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "add",
+                "bank",
+                "account"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send Adhar OTP",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "aadharNumber",
+                  "value": "393153264739",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/user/send/adhar/otp",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "send",
+                "adhar",
+                "otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Adhar OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "referenceId",
+                  "value": "28751941",
+                  "type": "text"
+                },
+                {
+                  "key": "otp",
+                  "value": "195174",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/user/verify/adhar/otp",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "verify",
+                "adhar",
+                "otp"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Pan Adhar Link Status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "panNumber",
+                  "value": "IYIPK8472G",
+                  "type": "text"
+                },
+                {
+                  "key": "adharNumber",
+                  "value": "393153264739",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/user/pan/adhar/link/status",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "pan",
+                "adhar",
+                "link",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Folio Number",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "folioNumber",
+                  "value": "1234568",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/user/add/folio/number",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "add",
+                "folio",
+                "number"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "folio list",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{host}}/user/folio/list?page=1&limit=10",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "folio",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Deposit Amount",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "amount",
+                  "value": "2432344",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/user/deposit/amount",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "deposit",
+                "amount"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Withdraw Amount",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "amount",
+                  "value": "2001",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/user/withdraw/amount",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "withdraw",
+                "amount"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Transaction List",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{host}}/user/transaction/list?page=1&limit=10",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "transaction",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AMC Performance",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{host}}/user/transaction/list?page=1&limit=10",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "transaction",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Maintenance",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{host}}/user/maintenance",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "maintenance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Review",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amcId\": 2,\n  \"rating\": 5,\n  \"comment\": \"Excellent service and very professional team!\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{host}}/user/create/review",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "create",
+                "review"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "get review",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"page\": 1,\n  \"limit\": 10,\n  \"amcId\": 2\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{host}}/user/review?amcId=2",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "user",
+                "review"
+              ],
+              "query": [
+                {
+                  "key": "amcId",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "SuperAdmin",
+      "item": [
+        {
+          "name": "User List",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{host}}/admin/user/list?page=1&limit=10&role",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "user",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Dirstributor List",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{host}}/admin/user/list?page=1&limit=10&role",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "user",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register AMC",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "mobile",
+                  "value": "6200132793",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "12345678",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "prakasdh@gmail.com",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "prakash",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "Pdkaslfdas",
+                  "type": "text"
+                },
+                {
+                  "key": "city",
+                  "value": "asdfasfda",
+                  "type": "text"
+                },
+                {
+                  "key": "contactPerDesignation",
+                  "value": "sdfasdfasdf",
+                  "type": "text"
+                },
+                {
+                  "key": "contactPersonName",
+                  "value": "asdfasdfa",
+                  "type": "text"
+                },
+                {
+                  "key": "panNumber",
+                  "value": "IYIPK8472G",
+                  "type": "text"
+                },
+                {
+                  "key": "pinCode",
+                  "value": "sadfasdfadf",
+                  "type": "text"
+                },
+                {
+                  "key": "state",
+                  "value": "802216",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/admin/register-amc",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "register-amc"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Maintenance",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer <your_token>"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"app_maintenance\": false,\n  \"force_update\": true,\n  \"ios_latest_version\": \"1.2.6\",\n  \"android_latest_version\": \"1.2.2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{host}}/admin/create-maintenance",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "create-maintenance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update AMC",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "id",
+                  "value": "2",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "Axis Mutual Fund",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "axismf@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "mobile",
+                  "value": "9876543210",
+                  "type": "text"
+                },
+                {
+                  "key": "panNumber",
+                  "value": "ABCDE1234F",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "4th Floor, Axis House, Mumbai",
+                  "type": "text"
+                },
+                {
+                  "key": "city",
+                  "value": "Mumbai",
+                  "type": "text"
+                },
+                {
+                  "key": "state",
+                  "value": "Maharashtra",
+                  "type": "text"
+                },
+                {
+                  "key": "pinCode",
+                  "value": "400001",
+                  "type": "text"
+                },
+                {
+                  "key": "contactPersonName",
+                  "value": "Rahul Sharma",
+                  "type": "text"
+                },
+                {
+                  "key": "contactPerDesignation",
+                  "value": "F",
+                  "type": "text"
+                },
+                {
+                  "key": "fundName",
+                  "value": "Axis Growth Opportunities Fund",
+                  "type": "text"
+                },
+                {
+                  "key": "equityPer",
+                  "value": "60",
+                  "type": "text"
+                },
+                {
+                  "key": "debtPer",
+                  "value": "30",
+                  "type": "text"
+                },
+                {
+                  "key": "cashSplit",
+                  "value": "10",
+                  "type": "text"
+                },
+                {
+                  "key": "isDeleted",
+                  "value": "false",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/admin/update-amc",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "update-amc"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register Distributor",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "mobile",
+                  "value": "6200132791",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "12345678",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "prakasdh3@gmail.com",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "prakash",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "Pdkaslfdas",
+                  "type": "text"
+                },
+                {
+                  "key": "city",
+                  "value": "asdfasfda",
+                  "type": "text"
+                },
+                {
+                  "key": "contactPerDesignation",
+                  "value": "sdfasdfasdf",
+                  "type": "text"
+                },
+                {
+                  "key": "contactPersonName",
+                  "value": "asdfasdfa",
+                  "type": "text"
+                },
+                {
+                  "key": "panNumber",
+                  "value": "IYIPK8472G",
+                  "type": "text"
+                },
+                {
+                  "key": "pinCode",
+                  "value": "sadfasdfadf",
+                  "type": "text"
+                },
+                {
+                  "key": "state",
+                  "value": "802216",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/admin/register-distributor",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "register-distributor"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Transaction List",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{host}}/admin/transaction/list?page=1&limit=10",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "transaction",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Permission",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": {
+              "raw": "{{host}}/admin/permission?userId=6",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "permission"
+              ],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "6"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update permission",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 4,\n  \"login\": false,\n  \"deposit\": true,\n  \"withdraw\": true,\n  \"invest\": true,\n  \"view-profile\": true,\n  \"transaction-list\": true,\n  \"create-folio\": true,\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{host}}/admin/update/permission?userId=6",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "update",
+                "permission"
+              ],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "6"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update permission",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 4,\n  \"login\": false,\n  \"deposit\": true,\n  \"withdraw\": true,\n  \"invest\": true,\n  \"view-profile\": true,\n  \"transaction-list\": true,\n  \"create-folio\": true,\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{host}}/admin/update/permission?userId=6",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "update",
+                "permission"
+              ],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "6"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Course",
+      "item": [
+        {
+          "name": "user",
+          "item": [
+            {
+              "name": "List Published Courses",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVzZXJAY2xhc3NpYWNhcGl0YWwuY29tIiwiZXhwIjoxNzcwMDM5MjU0LCJpYXQiOjE3Njk5NTI4NTQsIm1vYmlsZSI6IjcwNzAwNDQzMzAiLCJuYW1lIjoiQ2xhc3NpYSBVc2VyIiwicm9sZSI6IlVTRVIiLCJ1c2VySWQiOjJ9.XdNPqYL6AyfyGT1kYrWkw0u_tk_jeTlJgvPMLnkMXlQ"
+                  }
+                ],
+                "url": {
+                  "raw": "http://127.0.0.1:8080/course/list?page=1&limit=10",
+                  "protocol": "http",
+                  "host": [
+                    "127",
+                    "0",
+                    "0",
+                    "1"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "course",
+                    "list"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Course Details",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVzZXJAY2xhc3NpYWNhcGl0YWwuY29tIiwiZXhwIjoxNzcwMDM5MjU0LCJpYXQiOjE3Njk5NTI4NTQsIm1vYmlsZSI6IjcwNzAwNDQzMzAiLCJuYW1lIjoiQ2xhc3NpYSBVc2VyIiwicm9sZSI6IlVTRVIiLCJ1c2VySWQiOjJ9.XdNPqYL6AyfyGT1kYrWkw0u_tk_jeTlJgvPMLnkMXlQ"
+                  }
+                ],
+                "url": {
+                  "raw": "http://127.0.0.1:8080/course/1",
+                  "protocol": "http",
+                  "host": [
+                    "127",
+                    "0",
+                    "0",
+                    "1"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "course",
+                    "1"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Enroll in Course",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVzZXJAY2xhc3NpYWNhcGl0YWwuY29tIiwiZXhwIjoxNzcwMDM5MjU0LCJpYXQiOjE3Njk5NTI4NTQsIm1vYmlsZSI6IjcwNzAwNDQzMzAiLCJuYW1lIjoiQ2xhc3NpYSBVc2VyIiwicm9sZSI6IlVTRVIiLCJ1c2VySWQiOjJ9.XdNPqYL6AyfyGT1kYrWkw0u_tk_jeTlJgvPMLnkMXlQ"
+                  }
+                ],
+                "url": {
+                  "raw": "http://127.0.0.1:8080/course/1/enroll",
+                  "protocol": "http",
+                  "host": [
+                    "127",
+                    "0",
+                    "0",
+                    "1"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "course",
+                    "1",
+                    "enroll"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Course Content",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVzZXJAY2xhc3NpYWNhcGl0YWwuY29tIiwiZXhwIjoxNzcwMDM5MjU0LCJpYXQiOjE3Njk5NTI4NTQsIm1vYmlsZSI6IjcwNzAwNDQzMzAiLCJuYW1lIjoiQ2xhc3NpYSBVc2VyIiwicm9sZSI6IlVTRVIiLCJ1c2VySWQiOjJ9.XdNPqYL6AyfyGT1kYrWkw0u_tk_jeTlJgvPMLnkMXlQ"
+                  }
+                ],
+                "url": {
+                  "raw": "http://127.0.0.1:8080/course/1/content",
+                  "protocol": "http",
+                  "host": [
+                    "127",
+                    "0",
+                    "0",
+                    "1"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "course",
+                    "1",
+                    "content"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Day Content (Module 1, Day 1)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVzZXJAY2xhc3NpYWNhcGl0YWwuY29tIiwiZXhwIjoxNzcwMDM5MjU0LCJpYXQiOjE3Njk5NTI4NTQsIm1vYmlsZSI6IjcwNzAwNDQzMzAiLCJuYW1lIjoiQ2xhc3NpYSBVc2VyIiwicm9sZSI6IlVTRVIiLCJ1c2VySWQiOjJ9.XdNPqYL6AyfyGT1kYrWkw0u_tk_jeTlJgvPMLnkMXlQ"
+                  }
+                ],
+                "url": {
+                  "raw": "http://127.0.0.1:8080/course/1/module/1/day/1",
+                  "protocol": "http",
+                  "host": [
+                    "127",
+                    "0",
+                    "0",
+                    "1"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "course",
+                    "1",
+                    "module",
+                    "1",
+                    "day",
+                    "1"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Mark Content Complete",
+              "request": {
+                "method": "GET",
+                "header": []
+              },
+              "response": []
+            },
+            {
+              "name": "Submit MCQ Answer",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer YOUR_JWT_TOKEN"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://127.0.0.1:8080/course/1/content/1/mcq/submit",
+                  "protocol": "http",
+                  "host": [
+                    "127",
+                    "0",
+                    "0",
+                    "1"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "course",
+                    "1",
+                    "content",
+                    "1",
+                    "mcq",
+                    "submit"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Progress",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVzZXJAY2xhc3NpYWNhcGl0YWwuY29tIiwiZXhwIjoxNzcwMDM5MjU0LCJpYXQiOjE3Njk5NTI4NTQsIm1vYmlsZSI6IjcwNzAwNDQzMzAiLCJuYW1lIjoiQ2xhc3NpYSBVc2VyIiwicm9sZSI6IlVTRVIiLCJ1c2VySWQiOjJ9.XdNPqYL6AyfyGT1kYrWkw0u_tk_jeTlJgvPMLnkMXlQ"
+                  }
+                ],
+                "url": {
+                  "raw": "http://127.0.0.1:8080/course/1/progress",
+                  "protocol": "http",
+                  "host": [
+                    "127",
+                    "0",
+                    "0",
+                    "1"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "course",
+                    "1",
+                    "progress"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Request Certificate",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer YOUR_JWT_TOKEN"
+                  }
+                ],
+                "url": {
+                  "raw": "http://127.0.0.1:8080/course/1/certificate/request",
+                  "protocol": "http",
+                  "host": [
+                    "127",
+                    "0",
+                    "0",
+                    "1"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "course",
+                    "1",
+                    "certificate",
+                    "request"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get User Enrollments",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer YOUR_JWT_TOKEN"
+                  }
+                ],
+                "url": {
+                  "raw": "http://127.0.0.1:8080/user/enrollments",
+                  "protocol": "http",
+                  "host": [
+                    "127",
+                    "0",
+                    "0",
+                    "1"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "user",
+                    "enrollments"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get User Certificates",
+              "request": {
+                "method": "GET",
+                "header": []
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "admin",
+          "item": [
+            {
+              "name": "Module Management",
+              "item": [
+                {
+                  "name": "Create Module",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"title\": \"Introduction\", \"description\": \"Getting started\", \"order_index\": 1}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/1/module",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "1",
+                        "module"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "List Modules",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer YOUR_JWT_TOKEN"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/1/modules",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "1",
+                        "modules"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Update Module",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer YOUR_JWT_TOKEN"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"title\": \"Updated Title\"}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/1/module/1",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "1",
+                        "module",
+                        "1"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Delete Module",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{host}}/admin/course/1/module/1",
+                      "host": [
+                        "{{host}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "course",
+                        "1",
+                        "module",
+                        "1"
+                      ]
+                    }
+                  },
+                  "response": []
+                }
+              ]
+            },
+            {
+              "name": "course",
+              "item": [
+                {
+                  "name": "Create Course",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"title\": \"Go Programming\", \"description\": \"Learn Go from scratch\", \"author\": \"John Doe\", \"duration\": 40}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/create",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "create"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "List All Courses (Admin)",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer YOUR_JWT_TOKEN"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/list?page=1&limit=10",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "list"
+                      ],
+                      "query": [
+                        {
+                          "key": "page",
+                          "value": "1"
+                        },
+                        {
+                          "key": "limit",
+                          "value": "10"
+                        }
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Course Details",
+                  "request": {
+                    "method": "GET",
+                    "header": []
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Update Course",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"title\": \"Advanced Go Programming\", \"status\": \"ACTIVE\"}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/1",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "1"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Delete Course",
+                  "request": {
+                    "method": "GET",
+                    "header": []
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Publish Course",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer YOUR_JWT_TOKEN"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"publish\": true}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/1/publish",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "1",
+                        "publish"
+                      ]
+                    }
+                  },
+                  "response": []
+                }
+              ]
+            },
+            {
+              "name": "Content Management",
+              "item": [
+                {
+                  "name": "Create Content (TEXT)",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"day\": 1, \"title\": \"What is Go?\", \"description\": \"Introduction to Go\", \"content_type\": \"TEXT\", \"text_content\": \"Go is a programming language...\"}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/1/module/2/content",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "1",
+                        "module",
+                        "2",
+                        "content"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Create Content (VIDEO)",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"day\": 1, \"title\": \"Go Tutorial Video\", \"content_type\": \"VIDEO\", \"video_url\": \"https://youtube.com/watch?v=xxx\"}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/1/module/2/content",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "1",
+                        "module",
+                        "2",
+                        "content"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Create Content (MCQ)",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"day\": 1, \"title\": \"Quiz: Go Basics\", \"content_type\": \"MCQ\", \"description\": \"Test your knowledge\"}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/1/module/2/content",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "1",
+                        "module",
+                        "2",
+                        "content"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Update Content",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer YOUR_JWT_TOKEN"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"title\": \"Updated Content Title\"}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/content/1",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "content",
+                        "1"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Publish Content",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"is_published\": true}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/content/1/publish",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "content",
+                        "1",
+                        "publish"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "MCQ Options",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"option_text\": \"Option A\", \"is_correct\": true}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/content/3/mcq",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "content",
+                        "3",
+                        "mcq"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Update MCQ Option",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"option_text\": \"Updated Option\", \"is_correct\": false}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/mcq/1",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "mcq",
+                        "1"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Delete MCQ Option",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/mcq/2",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "mcq",
+                        "2"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "New Request",
+                  "request": {
+                    "method": "GET",
+                    "header": []
+                  },
+                  "response": []
+                },
+                {
+                  "name": "New Request",
+                  "request": {
+                    "method": "GET",
+                    "header": []
+                  },
+                  "response": []
+                }
+              ]
+            },
+            {
+              "name": "Dashboard & Certificates",
+              "item": [
+                {
+                  "name": "Dashboard Stats",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/dashboard/stats",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "dashboard",
+                        "stats"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Course Enrollments",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer YOUR_JWT_TOKEN"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/course/1/enrollments?page=1&limit=10",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "course",
+                        "1",
+                        "enrollments"
+                      ],
+                      "query": [
+                        {
+                          "key": "page",
+                          "value": "1"
+                        },
+                        {
+                          "key": "limit",
+                          "value": "10"
+                        }
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Student Progress",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/student/1/progress",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "student",
+                        "1",
+                        "progress"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Pending Certificate Requests",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/certificates/pending",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "certificates",
+                        "pending"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Approve Certificate",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer YOUR_JWT_TOKEN"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/certificate/1/approve",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "certificate",
+                        "1",
+                        "approve"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Reject Certificate",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQGNsYXNzaWFjYXBpdGFsLmNvbSIsImV4cCI6MTc3MDAzNzcxMSwiaWF0IjoxNzY5OTUxMzExLCJtb2JpbGUiOiI2OTU5NDk0OTM0IiwibmFtZSI6IkNsYXNzaWEgQWRtaW4iLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.6RV0L8Azj7gI_AkNfl71S1DS5mkfQVl5xQwFofpzocs"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"reason\": \"Incomplete progress\"}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "http://127.0.0.1:8080/admin/certificate/1/reject",
+                      "protocol": "http",
+                      "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        "admin",
+                        "certificate",
+                        "1",
+                        "reject"
+                      ]
+                    }
+                  },
+                  "response": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Support Ticket",
+      "item": [
+        {
+          "name": "Create",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "mobile",
+                  "value": "6200134792",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "12345678",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "prakash@gmail.com",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "prakash",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/admin/register-amc",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "register-amc"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ticket list",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{host}}/support/list?page=1&limit=10",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "support",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Ticket List",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{host}}/support/admin-list?page=1&limit=20",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "support",
+                "admin-list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "OPEN",
+                  "disabled": true
+                },
+                {
+                  "key": "priority",
+                  "value": "HIGH",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "GENERAL",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin TIcket Replay",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "ticketId",
+                  "value": "3",
+                  "type": "text"
+                },
+                {
+                  "key": "message",
+                  "value": "20",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/support/admin-replay",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "support",
+                "admin-replay"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "User Replay",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTIyMzIzNDMsImlhdCI6MTc1MjE0NTk0MywibmFtZSI6IkF4aXMgTXV0dWFsIEZ1bmQiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6Nn0.xGFLcK0TiWvARlXIVoa7ykb6xiioQVWSYYU-s7vU_yc",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "ticketId",
+                  "value": "3",
+                  "type": "text"
+                },
+                {
+                  "key": "message",
+                  "value": "20",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/support/user-replay",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "support",
+                "user-replay"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "User Close ticket",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTIyMzIzNDMsImlhdCI6MTc1MjE0NTk0MywibmFtZSI6IkF4aXMgTXV0dWFsIEZ1bmQiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6Nn0.xGFLcK0TiWvARlXIVoa7ykb6xiioQVWSYYU-s7vU_yc",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "ticketId",
+                  "value": "3",
+                  "type": "text"
+                },
+                {
+                  "key": "message",
+                  "value": "20",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/support/user-close-ticket",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "support",
+                "user-close-ticket"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin close ticket",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTIyMzIzNDMsImlhdCI6MTc1MjE0NTk0MywibmFtZSI6IkF4aXMgTXV0dWFsIEZ1bmQiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6Nn0.xGFLcK0TiWvARlXIVoa7ykb6xiioQVWSYYU-s7vU_yc",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "ticketId",
+                  "value": "3",
+                  "type": "text"
+                },
+                {
+                  "key": "message",
+                  "value": "20",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/support/user-close-ticket",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "support",
+                "user-close-ticket"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Course Content",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "title",
+                  "value": "prakash",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "hello",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/course/:id/content",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "course",
+                ":id",
+                "content"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Content List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDk5NzE0NTcsImlhdCI6MTc0OTg4NTA1NywibmFtZSI6InByYWthc2giLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.1ZqmvEck3KsR8Ei33BNSYof8BDD1Ykj9FE75gVc27_o"
+              }
+            ],
+            "url": {
+              "raw": "{{host}}/course/:id/content?page=1&limit=10",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "course",
+                ":id",
+                "content"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update permission",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 4,\n  \"login\": false,\n  \"deposit\": true,\n  \"withdraw\": true,\n  \"invest\": true,\n  \"view-profile\": true,\n  \"transaction-list\": true,\n  \"create-folio\": true,\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{host}}/admin/update/permission?userId=6",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "update",
+                "permission"
+              ],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "6"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "AMC",
+      "item": [
+        {
+          "name": "Stock list",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDQzODcxOTcsImlhdCI6MTc0NDMwMDc5NywibmFtZSI6IlByYWthc2gga3VtYXIiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6MX0.U00LBwaMc47RelWC7ZgFFIxc0J29PjZD3lzNmrZyjH4"
+              }
+            ],
+            "url": {
+              "raw": "{{host}}/amc/stock/list?page=1&limit=10",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "amc",
+                "stock",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "SelectStock",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDQzODcxOTcsImlhdCI6MTc0NDMwMDc5NywibmFtZSI6IlByYWthc2gga3VtYXIiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6MX0.U00LBwaMc47RelWC7ZgFFIxc0J29PjZD3lzNmrZyjH4"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "stockId",
+                  "value": "3",
+                  "type": "text"
+                },
+                {
+                  "key": "action",
+                  "value": "pick",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{host}}/amc/select/stock",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "amc",
+                "select",
+                "stock"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AMC Stock List",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDQzODcxOTcsImlhdCI6MTc0NDMwMDc5NywibmFtZSI6IlByYWthc2gga3VtYXIiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6MX0.U00LBwaMc47RelWC7ZgFFIxc0J29PjZD3lzNmrZyjH4"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{host}}/amc/picked/stock/list?limit=10&page=1",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "amc",
+                "picked",
+                "stock",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AMC Stock Performance",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDQzODcxOTcsImlhdCI6MTc0NDMwMDc5NywibmFtZSI6IlByYWthc2gga3VtYXIiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6MX0.U00LBwaMc47RelWC7ZgFFIxc0J29PjZD3lzNmrZyjH4"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{host}}/amc/performance?page=1&limit=10",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "amc",
+                "performance"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AMC List",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDQzODcxOTcsImlhdCI6MTc0NDMwMDc5NywibmFtZSI6IlByYWthc2gga3VtYXIiLCJyb2xlIjoiVVNFUiIsInVzZXJJZCI6MX0.U00LBwaMc47RelWC7ZgFFIxc0J29PjZD3lzNmrZyjH4"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": []
+            },
+            "url": {
+              "raw": "{{host}}/amc/list?page=1&limit=10",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "amc",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTIyMjA5MDcsImlhdCI6MTc1MjEzNDUwNywibmFtZSI6InByYWthc2giLCJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjF9.tFJwaHonv4p8V8Fluj2TArIbCjNTWUs-QmQwuRvJA2Y"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "id",
+                  "value": "2",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "Axis Mutual Fund",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "axismf@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "mobile",
+                  "value": "9876543210",
+                  "type": "text"
+                },
+                {
+                  "key": "panNumber",
+                  "value": "ABCDE1234F",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "4th Floor, Axis House, Mumbai",
+                  "type": "text"
+                },
+                {
+                  "key": "city",
+                  "value": "Mumbai",
+                  "type": "text"
+                },
+                {
+                  "key": "state",
+                  "value": "Maharashtra",
+                  "type": "text"
+                },
+                {
+                  "key": "pinCode",
+                  "value": "400001",
+                  "type": "text"
+                },
+                {
+                  "key": "contactPersonName",
+                  "value": "Rahul Sharma",
+                  "type": "text"
+                },
+                {
+                  "key": "contactPerDesignation",
+                  "value": "F",
+                  "type": "text"
+                },
+                {
+                  "key": "fundName",
+                  "value": "Axis Growth Opportunities Fund",
+                  "type": "text"
+                },
+                {
+                  "key": "equityPer",
+                  "value": "60",
+                  "type": "text"
+                },
+                {
+                  "key": "debtPer",
+                  "value": "30",
+                  "type": "text"
+                },
+                {
+                  "key": "cashSplit",
+                  "value": "10",
+                  "type": "text"
+                },
+                {
+                  "key": "isDeleted",
+                  "value": "false",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://localhost:8080/admin/update-amc",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "admin",
+                "update-amc"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "New Request",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": ""
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "New Request",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "host",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "jwtToken",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

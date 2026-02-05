@@ -2,6 +2,7 @@ package database
 
 import (
 	"fib/models"
+	"fib/models/basket"
 	course "fib/models/course"
 	"fmt"
 	"log"
@@ -93,6 +94,15 @@ func runMigrations(db *gorm.DB) {
 		&course.Certificate{},
 		&models.Maintenance{},
 		&models.Review{},
+		&models.BajajAccessToken{},
+		&basket.Basket{},
+		&basket.BasketVersion{},
+		&basket.BasketTimeSlot{},
+		&basket.BasketStock{},
+		&basket.BasketSubscription{},
+		&basket.BasketHistory{},
+		// Wallet
+		&models.WalletTransaction{},
 	)
 	if err != nil {
 		log.Fatalf("Migration failed: %v", err)

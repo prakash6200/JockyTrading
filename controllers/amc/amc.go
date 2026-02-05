@@ -87,43 +87,43 @@ func FetchAndStoreStocks() {
 			Symbol:    strings.TrimSpace(fields[1]),
 			Name:      strings.TrimSpace(fields[len(fields)-1]),
 			Exchange:  strings.TrimSpace(fields[4]),
-			Isin:      strings.TrimSpace(fields[3]),
+			ISIN:      strings.TrimSpace(fields[3]),
 			Series:    strings.TrimSpace(fields[2]),
 			IsDeleted: false,
 		}
 
 		// Log stock details before insertion
-		log.Printf("Processing stock %d: Symbol=%s, Name=%s, Exchange=%s, Isin=%s, Series=%s",
-			i+1, stock.Symbol, stock.Name, stock.Exchange, stock.Isin, stock.Series)
+		log.Printf("Processing stock %d: Symbol=%s, Name=%s, Exchange=%s, ISIN=%s, Series=%s",
+			i+1, stock.Symbol, stock.Name, stock.Exchange, stock.ISIN, stock.Series)
 		processed++
 
 		// Validate required fields
-		if stock.Symbol == "" || stock.Name == "" || stock.Exchange == "" || stock.Isin == "" || stock.Series == "" {
-			log.Printf("Skipping stock %d: Missing required fields (Symbol=%s, Name=%s, Exchange=%s, Isin=%s, Series=%s)",
-				i+1, stock.Symbol, stock.Name, stock.Exchange, stock.Isin, stock.Series)
+		if stock.Symbol == "" || stock.Name == "" || stock.Exchange == "" || stock.ISIN == "" || stock.Series == "" {
+			log.Printf("Skipping stock %d: Missing required fields (Symbol=%s, Name=%s, Exchange=%s, ISIN=%s, Series=%s)",
+				i+1, stock.Symbol, stock.Name, stock.Exchange, stock.ISIN, stock.Series)
 			continue
 		}
 
 		// Upsert stock in database
-		result := database.Database.Db.Where("symbol = ? OR isin = ?", stock.Symbol, stock.Isin).
+		result := database.Database.Db.Where("symbol = ? OR isin = ?", stock.Symbol, stock.ISIN).
 			Assign(stock).
 			FirstOrCreate(&stock)
 		if result.Error != nil {
-			log.Printf("Error syncing stock %s (Isin=%s): %v", stock.Symbol, stock.Isin, result.Error)
+			log.Printf("Error syncing stock %s (ISIN=%s): %v", stock.Symbol, stock.ISIN, result.Error)
 			continue
 		}
 
 		if result.RowsAffected == 1 {
-			log.Printf("Inserted new stock: Symbol=%s, Isin=%s", stock.Symbol, stock.Isin)
+			log.Printf("Inserted new stock: Symbol=%s, ISIN=%s", stock.Symbol, stock.ISIN)
 			inserted++
 		} else {
 			// Save updated fields for existing stock
 			result = database.Database.Db.Save(&stock)
 			if result.Error != nil {
-				log.Printf("Error updating stock %s (Isin=%s): %v", stock.Symbol, stock.Isin, result.Error)
+				log.Printf("Error updating stock %s (ISIN=%s): %v", stock.Symbol, stock.ISIN, result.Error)
 				continue
 			}
-			log.Printf("Updated existing stock: Symbol=%s, Isin=%s", stock.Symbol, stock.Isin)
+			log.Printf("Updated existing stock: Symbol=%s, ISIN=%s", stock.Symbol, stock.ISIN)
 			updated++
 		}
 	}
