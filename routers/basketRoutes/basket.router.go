@@ -35,6 +35,9 @@ func SetupAMCBasketRoutes(app *fiber.App) {
 	// Approval workflow
 	amcGroup.Post("/submit", basketValidator.SubmitForApproval(), middleware.JWTMiddleware, basketController.SubmitForApproval)
 
+	// Subscribers list
+	amcGroup.Get("/:id/subscribers", middleware.JWTMiddleware, basketController.GetBasketSubscribers)
+
 	// Get basket by ID (MUST be last - catches all /:id patterns)
 	amcGroup.Get("/:id", middleware.JWTMiddleware, basketController.GetBasketHistory)
 }
@@ -43,10 +46,19 @@ func SetupAMCBasketRoutes(app *fiber.App) {
 func SetupAdminBasketRoutes(app *fiber.App) {
 	adminGroup := app.Group("/admin/basket")
 
+	// Dashboard and stats
+	adminGroup.Get("/stats", middleware.JWTMiddleware, basketController.GetDashboardStats)
+	adminGroup.Get("/list", middleware.JWTMiddleware, basketController.ListAllBaskets)
+	adminGroup.Get("/subscribers", middleware.JWTMiddleware, basketController.GetAllSubscribers)
+
 	// Approval management
 	adminGroup.Get("/pending", basketValidator.ListPendingApprovals(), middleware.JWTMiddleware, basketController.ListPendingApprovals)
 	adminGroup.Post("/approve", basketValidator.ApproveBasket(), middleware.JWTMiddleware, basketController.ApproveBasket)
 	adminGroup.Post("/reject", basketValidator.RejectBasket(), middleware.JWTMiddleware, basketController.RejectBasket)
+
+	// Basket management
+	adminGroup.Post("/unpublish", middleware.JWTMiddleware, basketController.UnpublishBasket)
+	adminGroup.Delete("/delete", middleware.JWTMiddleware, basketController.AdminDeleteBasket)
 
 	// Time slot management (INTRA_HOUR)
 	adminGroup.Post("/time-slot", basketValidator.SetTimeSlot(), middleware.JWTMiddleware, basketController.SetTimeSlot)
@@ -54,6 +66,9 @@ func SetupAdminBasketRoutes(app *fiber.App) {
 	// Calendar and audit
 	adminGroup.Get("/calendar", basketValidator.GetCalendarView(), middleware.JWTMiddleware, basketController.GetCalendarView)
 	adminGroup.Get("/audit/:id", middleware.JWTMiddleware, basketController.GetAuditLog)
+
+	// Basket subscribers (admin)
+	adminGroup.Get("/:id/subscribers", middleware.JWTMiddleware, basketController.GetBasketSubscribersAdmin)
 
 	// Bajaj token management (Admin)
 	adminGroup.Post("/set-access-token", basketValidator.SetBajajAccessToken(), middleware.JWTMiddleware, basketController.SetBajajAccessToken)

@@ -6,6 +6,7 @@ import (
 	"fib/middleware"
 	"fib/models"
 	"fib/models/basket"
+	"log"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -145,10 +146,10 @@ func ApproveBasket(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to approve basket!", nil)
 	}
 
-	// Unpublish any previously published version of the same basket
+	// Unpublish/expire any previously published or scheduled version of the same basket
 	db.Model(&basket.BasketVersion{}).
-		Where("basket_id = ? AND id != ? AND status = ?", version.BasketID, version.ID, basket.StatusPublished).
-		Update("status", basket.StatusUnpublished)
+		Where("basket_id = ? AND id != ? AND status IN ?", version.BasketID, version.ID, []string{basket.StatusPublished, basket.StatusScheduled}).
+		Update("status", basket.StatusExpired)
 
 	// Update basket's current version
 	db.Model(&basket.Basket{}).Where("id = ?", version.BasketID).Update("current_version_id", version.ID)
@@ -348,6 +349,410 @@ func GetAuditLog(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Audit log fetched!", history)
+}
+
+// ListAllBaskets lists all baskets for admin with filtering
+func ListAllBaskets(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+	log.Println("ListAllBaskets called by admin:", userId)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! Admin role required.", nil)
+	}
+
+	// Parse query params
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	status := c.Query("status")         // DRAFT, PENDING_APPROVAL, PUBLISHED, SCHEDULED, EXPIRED, REJECTED
+	basketType := c.Query("basketType") // INTRA_HOUR, INTRADAY, DELIVERY
+	amcId := c.QueryInt("amcId", 0)
+	search := c.Query("search")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	db := database.Database.Db
+
+	query := db.Model(&basket.Basket{}).Where("is_deleted = false")
+
+	// Apply filters
+	if basketType != "" {
+		query = query.Where("basket_type = ?", basketType)
+	}
+	if amcId > 0 {
+		query = query.Where("amc_id = ?", amcId)
+	}
+	if search != "" {
+		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+search+"%", "%"+search+"%")
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var baskets []basket.Basket
+	// Explicitly using simplified Preload to avoid any function closures issues
+	if err := query.
+		Preload("Versions").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&baskets).Error; err != nil {
+		log.Printf("Error fetching baskets: %v", err)
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch baskets!", nil)
+	}
+
+	// If status filter, filter by version status
+	if status != "" {
+		var filteredBaskets []basket.Basket
+		for _, b := range baskets {
+			for _, v := range b.Versions {
+				if v.Status == status {
+					filteredBaskets = append(filteredBaskets, b)
+					break
+				}
+			}
+		}
+		baskets = filteredBaskets
+	}
+
+	// Get AMC details for each basket
+	type BasketWithAMC struct {
+		basket.Basket
+		AMCName  string `json:"amcName"`
+		AMCEmail string `json:"amcEmail"`
+	}
+
+	var result []BasketWithAMC
+	for _, b := range baskets {
+		var amc models.User
+		db.Where("id = ?", b.AMCID).First(&amc)
+		result = append(result, BasketWithAMC{
+			Basket:   b,
+			AMCName:  amc.Name,
+			AMCEmail: amc.Email,
+		})
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Baskets fetched!", fiber.Map{
+		"baskets": result,
+		"pagination": fiber.Map{
+			"total": total,
+			"page":  page,
+			"limit": limit,
+		},
+	})
+}
+
+// GetDashboardStats returns basket statistics for admin dashboard
+func GetDashboardStats(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! Admin role required.", nil)
+	}
+
+	db := database.Database.Db
+
+	// Basket counts by status
+	var totalBaskets int64
+	var draftCount, pendingCount, publishedCount, scheduledCount, expiredCount, rejectedCount int64
+
+	db.Model(&basket.Basket{}).Where("is_deleted = false").Count(&totalBaskets)
+
+	db.Model(&basket.BasketVersion{}).Where("status = ? AND is_deleted = false", basket.StatusDraft).Count(&draftCount)
+	db.Model(&basket.BasketVersion{}).Where("status = ? AND is_deleted = false", basket.StatusPendingApproval).Count(&pendingCount)
+	db.Model(&basket.BasketVersion{}).Where("status = ? AND is_deleted = false", basket.StatusPublished).Count(&publishedCount)
+	db.Model(&basket.BasketVersion{}).Where("status = ? AND is_deleted = false", basket.StatusScheduled).Count(&scheduledCount)
+	db.Model(&basket.BasketVersion{}).Where("status = ? AND is_deleted = false", basket.StatusExpired).Count(&expiredCount)
+	db.Model(&basket.BasketVersion{}).Where("status = ? AND is_deleted = false", basket.StatusRejected).Count(&rejectedCount)
+
+	// Basket counts by type
+	var intraHourCount, intradayCount, deliveryCount int64
+	db.Model(&basket.Basket{}).Where("basket_type = ? AND is_deleted = false", basket.BasketTypeIntraHour).Count(&intraHourCount)
+	db.Model(&basket.Basket{}).Where("basket_type = ? AND is_deleted = false", basket.BasketTypeIntraday).Count(&intradayCount)
+	db.Model(&basket.Basket{}).Where("basket_type = ? AND is_deleted = false", basket.BasketTypeDelivery).Count(&deliveryCount)
+
+	// Subscription stats
+	var totalSubscriptions, activeSubscriptions int64
+	db.Model(&basket.BasketSubscription{}).Where("is_deleted = false").Count(&totalSubscriptions)
+	db.Model(&basket.BasketSubscription{}).Where("status = ? AND is_deleted = false", basket.SubscriptionActive).Count(&activeSubscriptions)
+
+	// Today's stats
+	today := time.Now().Truncate(24 * time.Hour)
+	var todaySubscriptions int64
+	db.Model(&basket.BasketSubscription{}).Where("subscribed_at >= ? AND is_deleted = false", today).Count(&todaySubscriptions)
+
+	// Total revenue
+	var totalRevenue float64
+	db.Model(&basket.BasketSubscription{}).Where("is_deleted = false").Select("COALESCE(SUM(subscription_price), 0)").Scan(&totalRevenue)
+
+	// AMC count
+	var amcCount int64
+	db.Model(&models.User{}).Where("role = ? AND is_deleted = false", "AMC").Count(&amcCount)
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Dashboard stats fetched!", fiber.Map{
+		"baskets": fiber.Map{
+			"total": totalBaskets,
+			"byStatus": fiber.Map{
+				"draft":           draftCount,
+				"pendingApproval": pendingCount,
+				"published":       publishedCount,
+				"scheduled":       scheduledCount,
+				"expired":         expiredCount,
+				"rejected":        rejectedCount,
+			},
+			"byType": fiber.Map{
+				"intraHour": intraHourCount,
+				"intraday":  intradayCount,
+				"delivery":  deliveryCount,
+			},
+		},
+		"subscriptions": fiber.Map{
+			"total":        totalSubscriptions,
+			"active":       activeSubscriptions,
+			"today":        todaySubscriptions,
+			"totalRevenue": totalRevenue,
+		},
+		"amcCount": amcCount,
+	})
+}
+
+// GetAllSubscribers returns all subscribers across all baskets
+func GetAllSubscribers(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! Admin role required.", nil)
+	}
+
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	status := c.Query("status")
+	basketId := c.QueryInt("basketId", 0)
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	db := database.Database.Db
+
+	query := db.Model(&basket.BasketSubscription{}).Where("is_deleted = false")
+
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if basketId > 0 {
+		query = query.Where("basket_id = ?", basketId)
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var subscriptions []basket.BasketSubscription
+	if err := query.
+		Preload("Basket").
+		Preload("BasketVersion").
+		Order("subscribed_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&subscriptions).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch subscribers!", nil)
+	}
+
+	// Add user details
+	type SubscriberDetail struct {
+		basket.BasketSubscription
+		UserName   string `json:"userName"`
+		UserEmail  string `json:"userEmail"`
+		UserPhone  string `json:"userPhone"`
+		BasketName string `json:"basketName"`
+	}
+
+	var result []SubscriberDetail
+	for _, sub := range subscriptions {
+		var subUser models.User
+		db.Where("id = ?", sub.UserID).First(&subUser)
+
+		result = append(result, SubscriberDetail{
+			BasketSubscription: sub,
+			UserName:           subUser.Name,
+			UserEmail:          subUser.Email,
+			UserPhone:          subUser.Mobile,
+			BasketName:         sub.Basket.Name,
+		})
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Subscribers fetched!", fiber.Map{
+		"subscribers": result,
+		"pagination": fiber.Map{
+			"total": total,
+			"page":  page,
+			"limit": limit,
+		},
+	})
+}
+
+// UnpublishBasket unpublishes a basket version (admin only)
+func UnpublishBasket(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+	versionId := c.QueryInt("versionId", 0)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! Admin role required.", nil)
+	}
+
+	if versionId == 0 {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "versionId is required!", nil)
+	}
+
+	db := database.Database.Db
+
+	var version basket.BasketVersion
+	if err := db.Where("id = ? AND is_deleted = false", versionId).First(&version).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Version not found!", nil)
+	}
+
+	if version.Status != basket.StatusPublished && version.Status != basket.StatusScheduled {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Can only unpublish PUBLISHED or SCHEDULED versions!", nil)
+	}
+
+	version.Status = basket.StatusExpired
+	db.Save(&version)
+
+	recordAdminHistory(version.ID, "UNPUBLISHED", userId, "Basket unpublished by admin", nil)
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Basket unpublished successfully!", version)
+}
+
+// AdminDeleteBasket deletes a basket (soft delete)
+func AdminDeleteBasket(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+	basketId := c.QueryInt("basketId", 0)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! Admin role required.", nil)
+	}
+
+	if basketId == 0 {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "basketId is required!", nil)
+	}
+
+	db := database.Database.Db
+
+	var existingBasket basket.Basket
+	if err := db.Where("id = ? AND is_deleted = false", basketId).First(&existingBasket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Basket not found!", nil)
+	}
+
+	// Check for active subscriptions
+	var activeSubCount int64
+	db.Model(&basket.BasketSubscription{}).Where("basket_id = ? AND status = ? AND is_deleted = false", basketId, basket.SubscriptionActive).Count(&activeSubCount)
+
+	if activeSubCount > 0 {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Cannot delete basket with active subscriptions!", nil)
+	}
+
+	// Soft delete basket and all versions
+	db.Model(&basket.Basket{}).Where("id = ?", basketId).Update("is_deleted", true)
+	db.Model(&basket.BasketVersion{}).Where("basket_id = ?", basketId).Update("is_deleted", true)
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Basket deleted successfully!", nil)
+}
+
+// GetBasketSubscribersAdmin returns all subscribers for a specific basket (admin endpoint)
+func GetBasketSubscribersAdmin(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+	basketId := c.Params("id")
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! Admin role required.", nil)
+	}
+
+	db := database.Database.Db
+
+	// Check basket exists
+	var existingBasket basket.Basket
+	if err := db.Where("id = ? AND is_deleted = false", basketId).First(&existingBasket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Basket not found!", nil)
+	}
+
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	status := c.Query("status")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	query := db.Model(&basket.BasketSubscription{}).
+		Where("basket_id = ? AND is_deleted = false", basketId)
+
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var subscriptions []basket.BasketSubscription
+	if err := query.
+		Preload("BasketVersion").
+		Order("subscribed_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&subscriptions).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch subscribers!", nil)
+	}
+
+	// Add user details
+	type SubscriberInfo struct {
+		basket.BasketSubscription
+		UserName  string `json:"userName"`
+		UserEmail string `json:"userEmail"`
+		UserPhone string `json:"userPhone"`
+	}
+
+	var subscribers []SubscriberInfo
+	for _, sub := range subscriptions {
+		var subUser models.User
+		db.Where("id = ?", sub.UserID).First(&subUser)
+
+		subscribers = append(subscribers, SubscriberInfo{
+			BasketSubscription: sub,
+			UserName:           subUser.Name,
+			UserEmail:          subUser.Email,
+			UserPhone:          subUser.Mobile,
+		})
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Subscribers fetched!", fiber.Map{
+		"basket":      existingBasket,
+		"subscribers": subscribers,
+		"pagination": fiber.Map{
+			"total": total,
+			"page":  page,
+			"limit": limit,
+		},
+	})
 }
 
 // Helper function to record admin history

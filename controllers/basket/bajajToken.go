@@ -158,7 +158,7 @@ func AddStocksWithPricing(c *fiber.Ctx) error {
 	userId := c.Locals("userId").(uint)
 
 	var user models.User
-	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "AMC").First(&user).Error; err != nil {
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"AMC", "ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! AMC role required.", nil)
 	}
 
@@ -204,11 +204,30 @@ func AddStocksWithPricing(c *fiber.Ctx) error {
 		symbol = stock.Symbol
 	}
 
-	// Get draft version
+	// Get draft version or create new one if basket is already published
 	var version basket.BasketVersion
 	if err := db.Where("basket_id = ? AND status = ? AND is_deleted = false", reqData.BasketID, basket.StatusDraft).
 		Order("version_number DESC").First(&version).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "No draft version available!", nil)
+		// No draft version - check if we should create a new one
+		var latestVersion basket.BasketVersion
+		if err := db.Where("basket_id = ? AND is_deleted = false", reqData.BasketID).
+			Order("version_number DESC").First(&latestVersion).Error; err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "No version found for this basket!", nil)
+		}
+
+		// If latest version is PUBLISHED, SCHEDULED, or EXPIRED, create a new draft version
+		if latestVersion.Status == basket.StatusPublished || latestVersion.Status == basket.StatusScheduled || latestVersion.Status == basket.StatusExpired {
+			version = basket.BasketVersion{
+				BasketID:      reqData.BasketID,
+				VersionNumber: latestVersion.VersionNumber + 1,
+				Status:        basket.StatusDraft,
+			}
+			if err := db.Create(&version).Error; err != nil {
+				return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to create new draft version!", nil)
+			}
+		} else {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Cannot add stock - basket is in "+string(latestVersion.Status)+" status!", nil)
+		}
 	}
 
 	// Try to get access token for pricing (optional)
