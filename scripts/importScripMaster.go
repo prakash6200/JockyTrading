@@ -7,17 +7,26 @@ import (
 	"fib/models"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file from parent directory
+	envPath := filepath.Join("..", ".env")
+	if err := godotenv.Load(envPath); err != nil {
+		log.Printf("Warning: Could not load .env file from %s: %v", envPath, err)
+	}
+
 	// Load config and connect to database
 	config.LoadConfig()
 	database.ConnectDb()
 
-	// Open CSV file
-	file, err := os.Open("ScripMaster.csv")
+	// Open CSV file (in parent directory)
+	file, err := os.Open("../ScripMaster.csv")
 	if err != nil {
 		log.Fatalf("Failed to open CSV file: %v", err)
 	}
