@@ -502,5 +502,76 @@ func GetPublishedHistory(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch history!", nil)
 	}
 
-	return middleware.JsonResponse(c, fiber.StatusOK, true, "Published history fetched!", versions)
+	// Calculate pricing for each version
+	type HistoryResponse struct {
+		basket.BasketVersion
+		InitialPrice  float64 `json:"initialPrice"`
+		AchievedPrice float64 `json:"achievedPrice"`
+	}
+
+	var response []HistoryResponse
+
+	// Get Bajaj Token for live price
+	var bajajToken models.BajajAccessToken
+	db.Order("created_at DESC").First(&bajajToken)
+	accessToken := bajajToken.Token
+
+	for _, v := range versions {
+		var initialPrice float64 = v.PriceAtApproval
+		// Fallback Initial Price
+		if initialPrice == 0 {
+			for _, s := range v.Stocks {
+				initialPrice += s.PriceAtCreation * float64(s.Quantity)
+			}
+		}
+
+		var achievedPrice float64 = 0
+
+		// If EXPIRED, use PriceAtExpiry (or fallback to live/creation)
+		if v.Status == basket.StatusExpired {
+			if v.PriceAtExpiry > 0 {
+				achievedPrice = v.PriceAtExpiry
+			} else {
+				// Legacy data: fallback to current Live Price (Best Effort)
+				for _, stock := range v.Stocks {
+					if accessToken != "" && stock.Token > 0 {
+						if livePrice, err := utils.GetBajajQuote(accessToken, stock.Token); err == nil && livePrice > 0 {
+							achievedPrice += livePrice * float64(stock.Quantity)
+							continue
+						}
+					}
+					// Fallback to creation/approval if live fails
+					if stock.PriceAtApproval > 0 {
+						achievedPrice += stock.PriceAtApproval * float64(stock.Quantity)
+					} else {
+						achievedPrice += stock.PriceAtCreation * float64(stock.Quantity)
+					}
+				}
+			}
+		} else {
+			// PUBLISHED / SCHEDULED (Current): Use Live Price
+			for _, stock := range v.Stocks {
+				if accessToken != "" && stock.Token > 0 {
+					if livePrice, err := utils.GetBajajQuote(accessToken, stock.Token); err == nil && livePrice > 0 {
+						achievedPrice += livePrice * float64(stock.Quantity)
+						continue
+					}
+				}
+				// Fallback
+				if stock.PriceAtApproval > 0 {
+					achievedPrice += stock.PriceAtApproval * float64(stock.Quantity)
+				} else {
+					achievedPrice += stock.PriceAtCreation * float64(stock.Quantity)
+				}
+			}
+		}
+
+		response = append(response, HistoryResponse{
+			BasketVersion: v,
+			InitialPrice:  initialPrice,
+			AchievedPrice: achievedPrice,
+		})
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Published history fetched!", response)
 }

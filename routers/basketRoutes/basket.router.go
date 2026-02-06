@@ -51,6 +51,7 @@ func SetupAdminBasketRoutes(app *fiber.App) {
 	// Dashboard and stats
 	adminGroup.Get("/stats", middleware.JWTMiddleware, basketController.GetDashboardStats)
 	adminGroup.Get("/list", middleware.JWTMiddleware, basketController.ListAllBaskets)
+	adminGroup.Get("/details/:id", middleware.JWTMiddleware, basketController.GetAdminBasketDetails)
 	adminGroup.Get("/subscribers", middleware.JWTMiddleware, basketController.GetAllSubscribers)
 
 	// Approval management

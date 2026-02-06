@@ -28,9 +28,12 @@ type BasketVersion struct {
 	ApprovedAt      *time.Time `json:"approvedAt"`
 	ApprovedBy      *uint      `json:"approvedBy"`
 	RejectionReason string     `gorm:"type:text" json:"rejectionReason"`
-	PriceAtApproval float64    `gorm:"default:0" json:"priceAtApproval"`
-	TradingDate     *time.Time `json:"tradingDate"` // For INTRADAY: specific trading date
-	IsDeleted       bool       `gorm:"default:false" json:"isDeleted"`
+	// Pricing
+	PriceAtApproval float64 `gorm:"default:0" json:"priceAtApproval"`
+	PriceAtExpiry   float64 `gorm:"default:0" json:"priceAtExpiry"`
+
+	TradingDate *time.Time `json:"tradingDate"` // For INTRADAY: specific trading date
+	IsDeleted   bool       `gorm:"default:false" json:"isDeleted"`
 
 	// Relations
 	Basket   Basket          `gorm:"foreignKey:BasketID" json:"basket,omitempty"`

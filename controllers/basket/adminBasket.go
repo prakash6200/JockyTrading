@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 // ListPendingApprovals lists all baskets pending approval for admin
@@ -190,9 +191,31 @@ func ApproveBasket(c *fiber.Ctx) error {
 	}
 
 	// Unpublish/expire any previously published or scheduled version of the same basket
-	db.Model(&basket.BasketVersion{}).
-		Where("basket_id = ? AND id != ? AND status IN ?", version.BasketID, version.ID, []string{basket.StatusPublished, basket.StatusScheduled}).
-		Update("status", basket.StatusExpired)
+	var oldVersions []basket.BasketVersion
+	db.Preload("Stocks").Where("basket_id = ? AND id != ? AND status IN ?", version.BasketID, version.ID, []string{basket.StatusPublished, basket.StatusScheduled}).Find(&oldVersions)
+
+	for _, oldV := range oldVersions {
+		var expiryPrice float64 = 0
+		for _, stock := range oldV.Stocks {
+			// Try to fetch live price
+			if accessToken != "" && stock.Token > 0 {
+				if livePrice, err := utils.GetBajajQuote(accessToken, stock.Token); err == nil && livePrice > 0 {
+					expiryPrice += livePrice * float64(stock.Quantity)
+					continue
+				}
+			}
+			// Fallback to approval price (assume no change if live fails)
+			if stock.PriceAtApproval > 0 {
+				expiryPrice += stock.PriceAtApproval * float64(stock.Quantity)
+			} else {
+				expiryPrice += stock.PriceAtCreation * float64(stock.Quantity)
+			}
+		}
+
+		oldV.Status = basket.StatusExpired
+		oldV.PriceAtExpiry = expiryPrice
+		db.Save(&oldV)
+	}
 
 	// Update basket's current version
 	db.Model(&basket.Basket{}).Where("id = ?", version.BasketID).Update("current_version_id", version.ID)
@@ -810,4 +833,152 @@ func recordAdminHistory(versionId uint, action string, actorId uint, comments st
 	}
 
 	database.Database.Db.Create(&history)
+}
+
+// GetAdminBasketDetails returns detailed basket info for admin with all versions and pricing
+func GetAdminBasketDetails(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+	basketId := c.Params("id")
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	db := database.Database.Db
+
+	// Fetch Basket with all Versions and Stocks
+	var existingBasket basket.Basket
+	if err := db.Where("id = ? AND is_deleted = false", basketId).
+		Preload("Versions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("version_number DESC")
+		}).
+		Preload("Versions.Stocks").
+		Preload("CurrentVersion").
+		Preload("CurrentVersion.Stocks").
+		First(&existingBasket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Basket not found!", nil)
+	}
+
+	// Get Bajaj Token for live price
+	var bajajToken models.BajajAccessToken
+	db.Order("created_at DESC").First(&bajajToken)
+	accessToken := bajajToken.Token
+
+	// 1. Calculate Active Current Price (of CurrentVersion)
+	var activeCurrentPrice float64 = 0
+	type VersionDetail struct {
+		basket.BasketVersion
+		InitialPrice  float64 `json:"initialPrice"`
+		AchievedPrice float64 `json:"achievedPrice"`
+	}
+	var enrichedCurrentVersion *VersionDetail
+
+	if existingBasket.CurrentVersion != nil {
+		cv := existingBasket.CurrentVersion
+		cvInitialPrice := cv.PriceAtApproval
+		if cvInitialPrice == 0 {
+			for _, s := range cv.Stocks {
+				cvInitialPrice += s.PriceAtCreation * float64(s.Quantity)
+			}
+		}
+
+		for _, stock := range cv.Stocks {
+			// Live price
+			if accessToken != "" && stock.Token > 0 {
+				if livePrice, err := utils.GetBajajQuote(accessToken, stock.Token); err == nil && livePrice > 0 {
+					activeCurrentPrice += livePrice * float64(stock.Quantity)
+					continue
+				}
+			}
+			// Fallback
+			if stock.PriceAtApproval > 0 {
+				activeCurrentPrice += stock.PriceAtApproval * float64(stock.Quantity)
+			} else {
+				activeCurrentPrice += stock.PriceAtCreation * float64(stock.Quantity)
+			}
+		}
+
+		enrichedCurrentVersion = &VersionDetail{
+			BasketVersion: *cv,
+			InitialPrice:  cvInitialPrice,
+			AchievedPrice: activeCurrentPrice,
+		}
+	}
+
+	// 2. Iterate all versions for Initial and Achieved Price
+	var versionsDetails []VersionDetail
+
+	for _, v := range existingBasket.Versions {
+		// Initial Price Logic
+		initial := v.PriceAtApproval
+		if initial == 0 {
+			for _, s := range v.Stocks {
+				initial += s.PriceAtCreation * float64(s.Quantity)
+			}
+		}
+
+		// Achieved Price Logic
+		var achieved float64 = 0
+		if v.Status == basket.StatusExpired {
+			if v.PriceAtExpiry > 0 {
+				achieved = v.PriceAtExpiry
+			} else {
+				// Fallback to Live Price for legacy expired versions
+				for _, s := range v.Stocks {
+					if accessToken != "" && s.Token > 0 {
+						if livePrice, err := utils.GetBajajQuote(accessToken, s.Token); err == nil && livePrice > 0 {
+							achieved += livePrice * float64(s.Quantity)
+							continue
+						}
+					}
+					// Double Fallback
+					if s.PriceAtApproval > 0 {
+						achieved += s.PriceAtApproval * float64(s.Quantity)
+					} else {
+						achieved += s.PriceAtCreation * float64(s.Quantity)
+					}
+				}
+			}
+		} else {
+			// Active (Published/Scheduled): Live Price
+			for _, s := range v.Stocks {
+				if accessToken != "" && s.Token > 0 {
+					if livePrice, err := utils.GetBajajQuote(accessToken, s.Token); err == nil && livePrice > 0 {
+						achieved += livePrice * float64(s.Quantity)
+						continue
+					}
+				}
+				// Fallback
+				if s.PriceAtApproval > 0 {
+					achieved += s.PriceAtApproval * float64(s.Quantity)
+				} else {
+					achieved += s.PriceAtCreation * float64(s.Quantity)
+				}
+			}
+		}
+
+		versionsDetails = append(versionsDetails, VersionDetail{
+			BasketVersion: v,
+			InitialPrice:  initial,
+			AchievedPrice: achieved,
+		})
+	}
+
+	type Response struct {
+		basket.Basket
+		Versions       []VersionDetail `json:"versions"`
+		CurrentPrice   float64         `json:"currentPrice"`
+		CurrentVersion *VersionDetail  `json:"currentVersion"` // Shadows the embedded field
+	}
+
+	// Prepare basket for response - set CurrentVersion to nil in the base object to be safe
+	existingBasket.CurrentVersion = nil
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Basket details fetched!", Response{
+		Basket:         existingBasket,
+		Versions:       versionsDetails,
+		CurrentPrice:   activeCurrentPrice,
+		CurrentVersion: enrichedCurrentVersion,
+	})
 }
