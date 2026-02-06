@@ -17,7 +17,7 @@ func SetupAMCBasketRoutes(app *fiber.App) {
 	amcGroup.Put("/update", basketValidator.UpdateBasket(), middleware.JWTMiddleware, basketController.UpdateBasket)
 	amcGroup.Get("/list", basketValidator.ListBaskets(), middleware.JWTMiddleware, basketController.GetMyBaskets)
 
-	// Stocks list for adding to basket (MUST be before /:id)
+	// Stocks list for adding to basket
 	amcGroup.Get("/stocks-list", middleware.JWTMiddleware, basketController.GetStocksList)
 	amcGroup.Get("/stock-by-token", middleware.JWTMiddleware, basketController.GetStockByToken)
 	amcGroup.Get("/stock-by-symbol", middleware.JWTMiddleware, basketController.GetStockBySymbol)
@@ -25,9 +25,11 @@ func SetupAMCBasketRoutes(app *fiber.App) {
 	// Stock management
 	amcGroup.Post("/stocks/add", basketValidator.AddStocks(), middleware.JWTMiddleware, basketController.AddStocksToBasket)
 	amcGroup.Post("/stocks/remove", basketValidator.RemoveStock(), middleware.JWTMiddleware, basketController.RemoveStockFromBasket)
-
-	// Stock management with Bajaj pricing
 	amcGroup.Post("/stocks/add-with-pricing", basketValidator.AddStocksWithToken(), middleware.JWTMiddleware, basketController.AddStocksWithPricing)
+
+	// Review Management (AMC)
+	amcGroup.Get("/reviews/all", middleware.JWTMiddleware, basketController.GetAMCReviews)
+	amcGroup.Post("/review/moderate", middleware.JWTMiddleware, basketController.ModerateReview)
 
 	// Bajaj token management (AMC can also set token)
 	amcGroup.Post("/set-access-token", basketValidator.SetBajajAccessToken(), middleware.JWTMiddleware, basketController.SetBajajAccessToken)
@@ -79,6 +81,14 @@ func SetupAdminBasketRoutes(app *fiber.App) {
 func SetupUserBasketRoutes(app *fiber.App) {
 	userGroup := app.Group("/basket")
 
+	// User - Subscribe and view
+	userGroup.Post("/subscribe", middleware.JWTMiddleware, basketController.Subscribe)
+	userGroup.Get("/my-subscriptions", middleware.JWTMiddleware, basketController.GetMySubscriptions)
+
+	// Reviews (User)
+	userGroup.Post("/:id/review", middleware.JWTMiddleware, basketController.SubmitReview)
+	userGroup.Get("/:id/reviews", basketController.GetPublicReviews)
+
 	// Browse baskets (specific routes MUST come before :id routes)
 	userGroup.Get("/list", basketValidator.ListPublishedBaskets(), middleware.JWTMiddleware, basketController.ListPublishedBaskets)
 	userGroup.Get("/intra-hour/live", middleware.JWTMiddleware, basketController.GetLiveIntraHourBaskets)
@@ -92,10 +102,6 @@ func SetupUserBasketRoutes(app *fiber.App) {
 	userGroup.Get("/stocks-list", middleware.JWTMiddleware, basketController.GetStocksList)
 	userGroup.Get("/stock-by-token", middleware.JWTMiddleware, basketController.GetStockByToken)
 	userGroup.Get("/stock-by-symbol", middleware.JWTMiddleware, basketController.GetStockBySymbol)
-
-	// Subscriptions
-	userGroup.Post("/subscribe", basketValidator.Subscribe(), middleware.JWTMiddleware, basketController.Subscribe)
-	userGroup.Get("/my-subscriptions", basketValidator.GetMySubscriptions(), middleware.JWTMiddleware, basketController.GetMySubscriptions)
 
 	// Dynamic ID routes (MUST come AFTER specific routes)
 	userGroup.Get("/:id", middleware.JWTMiddleware, basketController.GetBasketDetails)
