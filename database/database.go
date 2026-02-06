@@ -102,6 +102,7 @@ func runMigrations(db *gorm.DB) {
 		&basket.BasketSubscription{},
 		&basket.BasketHistory{},
 		&basket.BasketReview{},
+		&basket.BasketMessage{},
 		// Wallet
 		&models.WalletTransaction{},
 	)

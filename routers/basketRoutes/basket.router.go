@@ -40,6 +40,10 @@ func SetupAMCBasketRoutes(app *fiber.App) {
 	// Subscribers list
 	amcGroup.Get("/:id/subscribers", middleware.JWTMiddleware, basketController.GetBasketSubscribers)
 
+	// Messaging (AMC Broadcast)
+	amcGroup.Post("/message", middleware.JWTMiddleware, basketController.AMCSendMessage)
+	amcGroup.Get("/messages/all", middleware.JWTMiddleware, basketController.GetAllMessages) // Global Inbox
+
 	// Get basket by ID (MUST be last - catches all /:id patterns)
 	amcGroup.Get("/:id", middleware.JWTMiddleware, basketController.GetBasketHistory)
 }
@@ -94,6 +98,11 @@ func SetupUserBasketRoutes(app *fiber.App) {
 	userGroup.Get("/list", basketValidator.ListPublishedBaskets(), middleware.JWTMiddleware, basketController.ListPublishedBaskets)
 	userGroup.Get("/intra-hour/live", middleware.JWTMiddleware, basketController.GetLiveIntraHourBaskets)
 	userGroup.Get("/intra-hour/upcoming", middleware.JWTMiddleware, basketController.GetUpcomingIntraHourBaskets)
+
+	// Messaging (User)
+	userGroup.Post("/message", middleware.JWTMiddleware, basketController.UserSendMessage)
+	userGroup.Get("/messages/all", middleware.JWTMiddleware, basketController.GetAllMessages) // Global Inbox
+	userGroup.Get("/:id/messages", middleware.JWTMiddleware, basketController.GetBasketMessages)
 
 	// Stock price lookup
 	userGroup.Get("/stock-price", basketValidator.GetStockPrice(), middleware.JWTMiddleware, basketController.GetStockPrice)
