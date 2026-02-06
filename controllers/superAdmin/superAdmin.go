@@ -231,7 +231,7 @@ func RegisterAMC(c *fiber.Ctx) error {
 		ContactPersonName:     reqData.ContactPersonName,
 		ContactPerDesignation: reqData.ContactPerDesignation,
 		FundName:              reqData.FundName,
-		EquityPer:             reqData.DebtPer,
+		EquityPer:             reqData.EquityPer,
 		DebtPer:               reqData.DebtPer,
 		CashSplit:             reqData.CashSplit,
 	}
