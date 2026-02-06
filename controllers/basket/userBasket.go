@@ -5,6 +5,7 @@ import (
 	"fib/middleware"
 	"fib/models"
 	"fib/models/basket"
+	"fib/utils"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -61,8 +62,68 @@ func ListPublishedBaskets(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch baskets!", nil)
 	}
 
+	// Prepare response with pricing
+	type BasketResponse struct {
+		basket.Basket
+		InitialPrice float64 `json:"initialPrice"`
+		CurrentPrice float64 `json:"currentPrice"`
+	}
+
+	var response []BasketResponse
+
+	// Get access token for live pricing
+	var bajajToken models.BajajAccessToken
+	database.Database.Db.Order("created_at DESC").First(&bajajToken)
+	accessToken := bajajToken.Token
+
+	for _, b := range baskets {
+		var initialPrice float64 = 0
+		var currentPrice float64 = 0
+
+		// Use the relevant version (Published or Scheduled)
+		// Since we preloaded Versions with matching status, usually there's only 1 active version or we pick the first one
+		if len(b.Versions) > 0 {
+			v := b.Versions[0]
+			initialPrice = v.PriceAtApproval
+
+			// Calculate fallback initial price if 0 (legacy data)
+			if initialPrice == 0 {
+				for _, stock := range v.Stocks {
+					initialPrice += stock.PriceAtCreation * float64(stock.Quantity)
+				}
+			}
+
+			// Calculate current price
+			for _, stock := range v.Stocks {
+				// Live price
+				if accessToken != "" && stock.Token > 0 {
+					if livePrice, err := utils.GetBajajQuote(accessToken, stock.Token); err == nil && livePrice > 0 {
+						currentPrice += livePrice * float64(stock.Quantity)
+						continue
+					}
+				}
+
+				// Fallback to approval price or creation price
+				if stock.PriceAtApproval > 0 {
+					currentPrice += stock.PriceAtApproval * float64(stock.Quantity)
+				} else {
+					currentPrice += stock.PriceAtCreation * float64(stock.Quantity)
+				}
+			}
+
+			// HIDE STOCKS from list view as requested
+			b.Versions[0].Stocks = nil
+		}
+
+		response = append(response, BasketResponse{
+			Basket:       b,
+			InitialPrice: initialPrice,
+			CurrentPrice: currentPrice,
+		})
+	}
+
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Published baskets fetched!", fiber.Map{
-		"baskets": baskets,
+		"baskets": response,
 		"pagination": fiber.Map{
 			"total": total,
 			"page":  *reqData.Page,
@@ -335,15 +396,83 @@ func GetMySubscriptions(c *fiber.Ctx) error {
 	var subscriptions []basket.BasketSubscription
 	if err := query.
 		Preload("Basket").
-		Preload("BasketVersion.Stocks", "is_deleted = false").
+		Preload("Basket.CurrentVersion.Stocks", "is_deleted = false").
+		Preload("BasketVersion"). // Keep original version info just in case, but no stocks
 		Offset(offset).Limit(*reqData.Limit).
 		Order("subscribed_at DESC").
 		Find(&subscriptions).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch subscriptions!", nil)
 	}
 
+	// Prepare response with pricing
+	type SubscriptionResponse struct {
+		basket.BasketSubscription
+		InitialPrice float64 `json:"initialPrice"`
+		CurrentPrice float64 `json:"currentPrice"`
+	}
+
+	var response []SubscriptionResponse
+
+	// Get access token for live pricing
+	var bajajToken models.BajajAccessToken
+	database.Database.Db.Order("created_at DESC").First(&bajajToken)
+	accessToken := bajajToken.Token
+
+	for _, sub := range subscriptions {
+		var initialPrice float64 = 0
+		var currentPrice float64 = 0
+
+		// Use Current Active Version if available, else fallback to Subscribed Version
+		var targetVersion basket.BasketVersion
+		if sub.Basket.CurrentVersion != nil {
+			targetVersion = *sub.Basket.CurrentVersion
+		} else {
+			targetVersion = sub.BasketVersion
+		}
+
+		// Calculation logic using targetVersion
+		if targetVersion.ID != 0 {
+			initialPrice = targetVersion.PriceAtApproval
+
+			// Fallback initial price
+			if initialPrice == 0 {
+				for _, stock := range targetVersion.Stocks {
+					initialPrice += stock.PriceAtCreation * float64(stock.Quantity)
+				}
+			}
+
+			// Current price
+			for _, stock := range targetVersion.Stocks {
+				// Live price
+				if accessToken != "" && stock.Token > 0 {
+					if livePrice, err := utils.GetBajajQuote(accessToken, stock.Token); err == nil && livePrice > 0 {
+						currentPrice += livePrice * float64(stock.Quantity)
+						continue
+					}
+				}
+
+				// Fallback
+				if stock.PriceAtApproval > 0 {
+					currentPrice += stock.PriceAtApproval * float64(stock.Quantity)
+				} else {
+					currentPrice += stock.PriceAtCreation * float64(stock.Quantity)
+				}
+			}
+		}
+
+		// Override the version in the response object to show the latest one
+		subResponse := sub
+		subResponse.BasketVersion = targetVersion
+
+		response = append(response, SubscriptionResponse{
+			BasketSubscription: subResponse,
+			InitialPrice:       initialPrice,
+			CurrentPrice:       currentPrice,
+		})
+	}
+
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Subscriptions fetched!", fiber.Map{
-		"subscriptions": subscriptions,
+		"subscriptions": response,
 		"pagination": fiber.Map{
 			"total": total,
 			"page":  *reqData.Page,

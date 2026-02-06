@@ -356,21 +356,38 @@ func GetBasketWithPricing(c *fiber.Ctx) error {
 	// Get the current/latest version
 	if len(existingBasket.Versions) > 0 {
 		currentVersion := existingBasket.Versions[0]
+
+		// Initial price from version (snapshot at approval)
+		basketInitialPrice = currentVersion.PriceAtApproval
+
 		for _, stock := range currentVersion.Stocks {
-			// Initial price (at creation)
-			basketInitialPrice += stock.PriceAtCreation * float64(stock.Units)
+			// If PriceAtApproval is 0 (legacy data), fallback to calculated creation price
+			if basketInitialPrice == 0 {
+				basketInitialPrice += stock.PriceAtCreation * float64(stock.Quantity)
+			}
 
 			// Current price (live from API if token available)
 			if accessToken != "" && stock.Token > 0 {
 				livePrice, err := utils.GetBajajQuote(accessToken, stock.Token)
-				if err == nil {
-					basketCurrentPrice += livePrice * float64(stock.Units)
+				if err == nil && livePrice > 0 {
+					basketCurrentPrice += livePrice * float64(stock.Quantity)
 				} else {
 					// Fallback to price at creation if API fails
-					basketCurrentPrice += stock.PriceAtCreation * float64(stock.Units)
+					// If PriceAtApproval is available, maybe use that? Better use PriceAtCreation as fallback for now
+					// Or PriceAtApproval if available to match "current" state as close as possible
+					if stock.PriceAtApproval > 0 {
+						basketCurrentPrice += stock.PriceAtApproval * float64(stock.Quantity)
+					} else {
+						basketCurrentPrice += stock.PriceAtCreation * float64(stock.Quantity)
+					}
 				}
 			} else {
-				basketCurrentPrice += stock.PriceAtCreation * float64(stock.Units)
+				// No token, use stored price
+				if stock.PriceAtApproval > 0 {
+					basketCurrentPrice += stock.PriceAtApproval * float64(stock.Quantity)
+				} else {
+					basketCurrentPrice += stock.PriceAtCreation * float64(stock.Quantity)
+				}
 			}
 		}
 	}

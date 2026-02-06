@@ -6,6 +6,7 @@ import (
 	"fib/middleware"
 	"fib/models"
 	"fib/models/basket"
+	"fib/utils"
 	"log"
 	"time"
 
@@ -137,10 +138,52 @@ func ApproveBasket(c *fiber.Ctx) error {
 		version.Status = basket.StatusPublished
 	}
 
+	// Calculate Initial Pricing at Approval Time
+	var bajajToken models.BajajAccessToken
+	db.Order("created_at DESC").First(&bajajToken)
+	accessToken := bajajToken.Token
+
+	var stocks []basket.BasketStock
+	db.Where("basket_version_id = ? AND is_deleted = false", version.ID).Find(&stocks)
+
+	var totalInitialValuation float64 = 0
+
+	for _, stock := range stocks {
+		price := stock.PriceAtCreation // Fallback
+
+		// Auto-heal: If Token is missing, fetch from master
+		if stock.Token == 0 {
+			var masterStock models.Stocks
+			if err := db.Where("id = ?", stock.StockID).First(&masterStock).Error; err == nil {
+				stock.Token = masterStock.Token
+				stock.Symbol = masterStock.Symbol
+				// Save healed data
+				db.Model(&stock).Select("Token", "Symbol").Updates(basket.BasketStock{Token: masterStock.Token, Symbol: masterStock.Symbol})
+			}
+		}
+
+		// Try to fetch live price if token is available
+		if accessToken != "" && stock.Token > 0 {
+			livePrice, err := utils.GetBajajQuote(accessToken, stock.Token)
+			if err == nil && livePrice > 0 {
+				price = livePrice
+			} else {
+				// Log error but continue with creation price
+				// log.Printf("Failed to fetch price for token %d: %v", stock.Token, err)
+			}
+		}
+
+		// Update stock with approval price
+		db.Model(&stock).Update("price_at_approval", price)
+
+		totalInitialValuation += price * float64(stock.Quantity)
+	}
+
 	// Update version
 	now := time.Now()
 	version.ApprovedAt = &now
 	version.ApprovedBy = &userId
+	version.PriceAtApproval = totalInitialValuation
 
 	if err := db.Save(&version).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to approve basket!", nil)

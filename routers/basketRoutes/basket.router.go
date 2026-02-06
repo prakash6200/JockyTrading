@@ -83,7 +83,7 @@ func SetupUserBasketRoutes(app *fiber.App) {
 
 	// User - Subscribe and view
 	userGroup.Post("/subscribe", middleware.JWTMiddleware, basketController.Subscribe)
-	userGroup.Get("/my-subscriptions", middleware.JWTMiddleware, basketController.GetMySubscriptions)
+	userGroup.Get("/my-subscriptions", basketValidator.GetMySubscriptions(), middleware.JWTMiddleware, basketController.GetMySubscriptions)
 
 	// Reviews (User)
 	userGroup.Post("/:id/review", middleware.JWTMiddleware, basketController.SubmitReview)

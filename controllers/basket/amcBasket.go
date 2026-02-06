@@ -6,6 +6,7 @@ import (
 	"fib/middleware"
 	"fib/models"
 	"fib/models/basket"
+	"fib/utils"
 	"log"
 	"time"
 
@@ -165,6 +166,17 @@ func AddStocksToBasket(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Stock not found!", nil)
 	}
 
+	// Fetch live price for PriceAtCreation
+	var priceAtCreation float64 = 0
+	var bajajToken models.BajajAccessToken
+	db.Order("created_at DESC").First(&bajajToken)
+
+	if bajajToken.Token != "" && stock.Token > 0 {
+		if p, err := utils.GetBajajQuote(bajajToken.Token, stock.Token); err == nil {
+			priceAtCreation = p
+		}
+	}
+
 	// Get current draft version
 	var version basket.BasketVersion
 	if err := db.Where("basket_id = ? AND status = ? AND is_deleted = false", reqData.BasketID, basket.StatusDraft).
@@ -181,6 +193,18 @@ func AddStocksToBasket(c *fiber.Ctx) error {
 		existingStock.OrderType = reqData.OrderType
 		existingStock.TargetPrice = reqData.TargetPrice
 		existingStock.StopLossPrice = reqData.StopLossPrice
+
+		// Update meta fields if missing or if newer price available
+		if existingStock.Token == 0 {
+			existingStock.Token = stock.Token
+		}
+		if existingStock.Symbol == "" {
+			existingStock.Symbol = stock.Symbol
+		}
+		if priceAtCreation > 0 {
+			existingStock.PriceAtCreation = priceAtCreation
+		}
+
 		db.Save(&existingStock)
 
 		return middleware.JsonResponse(c, fiber.StatusOK, true, "Stock updated in basket!", existingStock)
@@ -200,6 +224,9 @@ func AddStocksToBasket(c *fiber.Ctx) error {
 		OrderType:       orderType,
 		TargetPrice:     reqData.TargetPrice,
 		StopLossPrice:   reqData.StopLossPrice,
+		Token:           stock.Token,
+		Symbol:          stock.Symbol,
+		PriceAtCreation: priceAtCreation,
 	}
 
 	if err := db.Create(&basketStock).Error; err != nil {
@@ -211,6 +238,7 @@ func AddStocksToBasket(c *fiber.Ctx) error {
 		"stockId":   reqData.StockID,
 		"quantity":  reqData.Quantity,
 		"weightage": reqData.Weightage,
+		"price":     priceAtCreation,
 	})
 	recordHistory(db, version.ID, basket.ActionStockAdded, userId, basket.ActorAMC, "Stock added to basket", metadata)
 

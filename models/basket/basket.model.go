@@ -24,7 +24,8 @@ type Basket struct {
 	IsDeleted        bool    `gorm:"default:false" json:"isDeleted"`
 
 	// Relations
-	Versions []BasketVersion `gorm:"foreignKey:BasketID" json:"versions,omitempty"`
+	Versions       []BasketVersion `gorm:"foreignKey:BasketID" json:"versions,omitempty"`
+	CurrentVersion *BasketVersion  `gorm:"foreignKey:CurrentVersionID" json:"currentVersion,omitempty"`
 }
 
 func (Basket) TableName() string {

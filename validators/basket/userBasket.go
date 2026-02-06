@@ -73,10 +73,17 @@ func GetMySubscriptions() fiber.Handler {
 
 		errors := make(map[string]string)
 
-		if reqData.Page == nil || *reqData.Page < 1 {
+		if reqData.Page == nil {
+			defaultPage := 1
+			reqData.Page = &defaultPage
+		} else if *reqData.Page < 1 {
 			errors["page"] = "Page must be greater than 0!"
 		}
-		if reqData.Limit == nil || *reqData.Limit < 1 {
+
+		if reqData.Limit == nil {
+			defaultLimit := 10
+			reqData.Limit = &defaultLimit
+		} else if *reqData.Limit < 1 {
 			errors["limit"] = "Limit must be greater than 0!"
 		}
 
