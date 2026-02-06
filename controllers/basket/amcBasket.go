@@ -75,6 +75,13 @@ func CreateBasket(c *fiber.Ctx) error {
 	// Record history
 	recordHistory(db, version.ID, basket.ActionCreated, userId, basket.ActorAMC, "Basket created", nil)
 
+	// Send Email (Async)
+	go func() {
+		if user.Email != "" {
+			utils.SendBasketCreatedEmail(user.Email, user.Name, newBasket.Name)
+		}
+	}()
+
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Basket created successfully!", fiber.Map{
 		"basket":  newBasket,
 		"version": version,
@@ -127,6 +134,13 @@ func UpdateBasket(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update basket!", nil)
 	}
 
+	// Send Email (Async)
+	go func() {
+		if user.Email != "" {
+			utils.SendBasketUpdatedEmail(user.Email, user.Name, existingBasket.Name)
+		}
+	}()
+
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Basket updated successfully!", existingBasket)
 }
 
@@ -177,11 +191,17 @@ func AddStocksToBasket(c *fiber.Ctx) error {
 		}
 	}
 
-	// Get current draft version
+	// Get draft or rejected version
 	var version basket.BasketVersion
-	if err := db.Where("basket_id = ? AND status = ? AND is_deleted = false", reqData.BasketID, basket.StatusDraft).
+	if err := db.Where("basket_id = ? AND status IN ? AND is_deleted = false", reqData.BasketID, []string{basket.StatusDraft, basket.StatusRejected}).
 		Order("version_number DESC").First(&version).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "No draft version available! Create a new version first.", nil)
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "No draft or rejected version available! Create a new version first.", nil)
+	}
+
+	// If rejected, revert to draft
+	if version.Status == basket.StatusRejected {
+		version.Status = basket.StatusDraft
+		db.Save(&version)
 	}
 
 	// Check if stock already exists in this version
@@ -270,11 +290,17 @@ func RemoveStockFromBasket(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Basket not found!", nil)
 	}
 
-	// Get draft version
+	// Get draft or rejected version
 	var version basket.BasketVersion
-	if err := db.Where("basket_id = ? AND status = ? AND is_deleted = false", reqData.BasketID, basket.StatusDraft).
+	if err := db.Where("basket_id = ? AND status IN ? AND is_deleted = false", reqData.BasketID, []string{basket.StatusDraft, basket.StatusRejected}).
 		Order("version_number DESC").First(&version).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "No draft version available!", nil)
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "No draft or rejected version available!", nil)
+	}
+
+	// If rejected, revert to draft
+	if version.Status == basket.StatusRejected {
+		version.Status = basket.StatusDraft
+		db.Save(&version)
 	}
 
 	// Soft delete the stock
@@ -317,11 +343,11 @@ func SubmitForApproval(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Basket not found!", nil)
 	}
 
-	// Get draft version
+	// Get draft or rejected version
 	var version basket.BasketVersion
-	if err := db.Where("basket_id = ? AND status = ? AND is_deleted = false", reqData.BasketID, basket.StatusDraft).
+	if err := db.Where("basket_id = ? AND status IN ? AND is_deleted = false", reqData.BasketID, []string{basket.StatusDraft, basket.StatusRejected}).
 		Order("version_number DESC").First(&version).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "No draft version available for submission!", nil)
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "No draft or rejected version available for submission!", nil)
 	}
 
 	// Check if there are stocks in the version
@@ -339,6 +365,13 @@ func SubmitForApproval(c *fiber.Ctx) error {
 
 	// Record history
 	recordHistory(db, version.ID, basket.ActionSubmitted, userId, basket.ActorAMC, "Basket submitted for approval", nil)
+
+	// Send Email (Async)
+	go func() {
+		if user.Email != "" {
+			utils.SendBasketSubmittedEmail(user.Email, user.Name, existingBasket.Name)
+		}
+	}()
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Basket submitted for approval!", version)
 }

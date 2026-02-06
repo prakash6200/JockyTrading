@@ -360,6 +360,9 @@ func Subscribe(c *fiber.Ctx) error {
 	// Preload basket data for response
 	db.Preload("Basket").Preload("BasketVersion").Preload("BasketVersion.Stocks", "is_deleted = false").First(&subscription)
 
+	// Send Subscription Email
+	utils.SendSubscriptionEmail(user.Email, user.Name, existingBasket.Name)
+
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Subscribed successfully!", subscription)
 }
 

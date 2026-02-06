@@ -98,6 +98,9 @@ func Signup(c *fiber.Ctx) error {
 	// Clean Response
 	newUser.Password = ""
 
+	// Send Welcome Email
+	utils.SendWelcomeEmail(newUser.Email, newUser.Name)
+
 	return middleware.JsonResponse(c, fiber.StatusCreated, true, "User registered successfully.", newUser)
 }
 
@@ -245,6 +248,11 @@ func Login(c *fiber.Ctx) error {
 	token, err := middleware.GenerateJWT(user.ID, user.Name, user.Role, user.Email, user.Mobile)
 	if err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to generate token", nil)
+	}
+
+	// Send Login Notification Email
+	if user.Email != "" {
+		utils.SendLoginNotificationEmail(user.Email, user.Name, ip, userAgent, time.Now().Format("02 Jan 2006 15:04:05 PM"))
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Login successful.", fiber.Map{

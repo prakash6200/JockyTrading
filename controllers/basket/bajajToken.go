@@ -225,6 +225,13 @@ func AddStocksWithPricing(c *fiber.Ctx) error {
 			if err := db.Create(&version).Error; err != nil {
 				return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to create new draft version!", nil)
 			}
+		} else if latestVersion.Status == basket.StatusRejected {
+			// REJECTED -> Revert to DRAFT so it can be edited
+			latestVersion.Status = basket.StatusDraft
+			if err := db.Save(&latestVersion).Error; err != nil {
+				return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to revert basket to draft!", nil)
+			}
+			version = latestVersion
 		} else {
 			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Cannot add stock - basket is in "+string(latestVersion.Status)+" status!", nil)
 		}
@@ -307,6 +314,13 @@ func AddStocksWithPricing(c *fiber.Ctx) error {
 	if err := db.Create(&basketStock).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to add stock!", nil)
 	}
+
+	// Send Email (Async)
+	go func() {
+		if user.Email != "" {
+			utils.SendStockAddedEmail(user.Email, user.Name, existingBasket.Name, symbol, orderType)
+		}
+	}()
 
 	response := fiber.Map{
 		"stock":        basketStock,

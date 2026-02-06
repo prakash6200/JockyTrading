@@ -5,6 +5,7 @@ import (
 	"fib/database"
 	"fib/middleware"
 	"fib/models"
+	"fib/utils"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -104,6 +105,9 @@ func DepositToWallet(c *fiber.Ctx) error {
 	}
 
 	tx.Commit()
+
+	// Send Deposit Email
+	utils.SendWalletDepositEmail(user.Email, user.Name, reqData.Amount)
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Deposit successful!", fiber.Map{
 		"transactionId": transaction.ID,

@@ -223,6 +223,27 @@ func ApproveBasket(c *fiber.Ctx) error {
 	// Record history
 	recordAdminHistory(version.ID, basket.ActionApproved, userId, "Basket approved by admin", nil)
 
+	// Send Email to AMC (Async)
+	go func() {
+		var amc models.User
+		if err := db.Where("id = ?", version.Basket.AMCID).First(&amc).Error; err == nil && amc.Email != "" {
+			utils.SendBasketApprovedEmail(amc.Email, amc.Name, version.Basket.Name)
+		}
+
+		// If Published immediately (Delivery/Intraday), notify subscribers
+		if version.Status == basket.StatusPublished {
+			var subs []basket.BasketSubscription
+			if err := db.Where("basket_id = ? AND status = ? AND is_deleted = false", version.BasketID, basket.SubscriptionActive).Find(&subs).Error; err == nil {
+				for _, sub := range subs {
+					var u models.User
+					if err := db.Select("name, email").First(&u, sub.UserID).Error; err == nil && u.Email != "" {
+						utils.SendNewVersionEmail(u.Email, u.Name, version.Basket.Name, version.VersionNumber)
+					}
+				}
+			}
+		}
+	}()
+
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Basket approved successfully!", version)
 }
 
@@ -247,7 +268,8 @@ func RejectBasket(c *fiber.Ctx) error {
 
 	// Find the version
 	var version basket.BasketVersion
-	if err := db.Where("id = ? AND status = ? AND is_deleted = false", reqData.BasketVersionID, basket.StatusPendingApproval).First(&version).Error; err != nil {
+	// Preload Basket to get AMC ID/Name for email
+	if err := db.Preload("Basket").Where("id = ? AND status = ? AND is_deleted = false", reqData.BasketVersionID, basket.StatusPendingApproval).First(&version).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Basket version not found or not pending approval!", nil)
 	}
 
@@ -262,6 +284,14 @@ func RejectBasket(c *fiber.Ctx) error {
 	// Record history
 	metadata, _ := json.Marshal(map[string]interface{}{"reason": reqData.Reason})
 	recordAdminHistory(version.ID, basket.ActionRejected, userId, reqData.Reason, metadata)
+
+	// Send Email to AMC (Async)
+	go func() {
+		var amc models.User
+		if err := db.Where("id = ?", version.Basket.AMCID).First(&amc).Error; err == nil && amc.Email != "" {
+			utils.SendBasketRejectedEmail(amc.Email, amc.Name, version.Basket.Name, reqData.Reason)
+		}
+	}()
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Basket rejected!", version)
 }

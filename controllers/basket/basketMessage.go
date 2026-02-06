@@ -5,6 +5,8 @@ import (
 	"fib/middleware"
 	"fib/models"
 	"fib/models/basket"
+	"fib/utils"
+	"fmt"
 	"sort"
 
 	"github.com/gofiber/fiber/v2"
@@ -72,6 +74,29 @@ func AMCSendMessage(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to send message!", nil)
 	}
 
+	// Send Email Notifications (Async)
+	go func() {
+		if isBroadcast {
+			// Broadcast to all active subscribers
+			var subs []basket.BasketSubscription
+			if err := db.Where("basket_id = ? AND status = ? AND is_deleted = false", reqData.BasketID, basket.SubscriptionActive).Find(&subs).Error; err == nil {
+				for _, sub := range subs {
+					// Fetch User Manually to avoid preload issues
+					var u models.User
+					if err := db.Select("name, email").First(&u, sub.UserID).Error; err == nil && u.Email != "" {
+						utils.SendNewMessageEmail(u.Email, u.Name, existingBasket.Name, reqData.Action, reqData.Message)
+					}
+				}
+			}
+		} else {
+			// Direct Message to Target User
+			var targetUser models.User
+			if err := db.First(&targetUser, reqData.TargetUserID).Error; err == nil {
+				utils.SendNewMessageEmail(targetUser.Email, targetUser.Name, existingBasket.Name, reqData.Action, reqData.Message)
+			}
+		}
+	}()
+
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Message sent successfully!", msg)
 }
 
@@ -116,6 +141,20 @@ func UserSendMessage(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to send message!", nil)
 	}
 
+	// Send Email to AMC (Async)
+	go func() {
+		var b basket.Basket
+		if err := db.First(&b, reqData.BasketID).Error; err == nil {
+			var amc models.User
+			if err := db.First(&amc, b.AMCID).Error; err == nil {
+				// Fetch Sender Name
+				var sender models.User
+				db.Select("name").First(&sender, userId)
+				utils.SendAMCMessageReceivedEmail(amc.Email, amc.Name, sender.Name, b.Name, reqData.Message)
+			}
+		}
+	}()
+
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Message sent to AMC!", msg)
 }
 
@@ -131,40 +170,42 @@ func GetAllMessages(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
 	}
 
-	var messages []basket.BasketMessage
+	// Unified Logic: Users see messages for baskets they OWN + baskets they SUBSCRIBE to
 
-	if user.Role == "AMC" {
-		// AMC: Get messages for all owned baskets
-		var ownedBasketIDs []uint
+	// 1. Get Owned Baskets (If AMC/Admin)
+	var ownedBasketIDs []uint
+	if user.Role == "AMC" || user.Role == "ADMIN" || user.Role == "SUPER-ADMIN" {
 		db.Model(&basket.Basket{}).Where("amc_id = ?", userId).Pluck("id", &ownedBasketIDs)
-
-		if len(ownedBasketIDs) > 0 {
-			db.Where("basket_id IN ?", ownedBasketIDs).
-				Order("created_at DESC").
-				Find(&messages)
-		}
-	} else {
-		// User: Get messages for subscribed baskets (Broadcasts) OR Direct User Messages
-		// 1. Get List of Subscribed Baskets (Active or Expired)
-		var subBasketIDs []uint
-		db.Model(&basket.BasketSubscription{}).Where("user_id = ?", userId).Pluck("basket_id", &subBasketIDs)
-
-		// 2. Fetch Messages
-		query := db.Model(&basket.BasketMessage{})
-
-		if len(subBasketIDs) > 0 {
-			query = query.Where(
-				db.Where("basket_id IN ? AND is_broadcast = true", subBasketIDs).
-					Or("sender_id = ?", userId).
-					Or("target_user_id = ?", userId),
-			)
-		} else {
-			// No subscriptions, only see own messages (historical?) or direct replies
-			query = query.Where("sender_id = ? OR target_user_id = ?", userId, userId)
-		}
-
-		query.Order("created_at DESC").Find(&messages)
 	}
+
+	// 2. Get Subscribed Baskets (All Roles)
+	var subBasketIDs []uint
+	db.Model(&basket.BasketSubscription{}).Where("user_id = ?", userId).Pluck("basket_id", &subBasketIDs)
+
+	// 3. Fetch Messages
+	var messages []basket.BasketMessage
+	query := db.Model(&basket.BasketMessage{})
+
+	conditions := db.Where("false") // Default false to OR conditions together
+
+	// Condition A: Messages for Owned Baskets (See EVERYTHING)
+	if len(ownedBasketIDs) > 0 {
+		conditions = conditions.Or("basket_id IN ?", ownedBasketIDs)
+	}
+
+	// Condition B: Messages for Subscribed Baskets (Broadcasts OR Direct DMs)
+	if len(subBasketIDs) > 0 {
+		conditions = conditions.Or(
+			db.Where("basket_id IN ?", subBasketIDs).
+				Where("is_broadcast = true OR sender_id = ? OR target_user_id = ?", userId, userId),
+		)
+	}
+
+	// Condition C: Direct Messages where I am the Sender or Receiver (regardless of basket relation, e.g. historical)
+	conditions = conditions.Or("sender_id = ?", userId).Or("target_user_id = ?", userId)
+
+	// Apply filter
+	query.Where(conditions).Order("created_at DESC").Find(&messages)
 
 	// Enrich
 	type MessageResponse struct {
@@ -173,7 +214,8 @@ func GetAllMessages(c *fiber.Ctx) error {
 		BasketName string `json:"basketName"`
 	}
 
-	var response []MessageResponse
+	// Initialize as empty slice to avoid null in JSON
+	response := []MessageResponse{}
 
 	// Optimize: Cache Basket Names and User Names
 	basketNames := make(map[uint]string)
@@ -231,6 +273,8 @@ func GetAllMessages(c *fiber.Ctx) error {
 	sort.Slice(response, func(i, j int) bool {
 		return response[i].CreatedAt.After(response[j].CreatedAt)
 	})
+
+	fmt.Printf("Fetched %d messages for UserID %d\n", len(response), userId)
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "All messages fetched!", response)
 }

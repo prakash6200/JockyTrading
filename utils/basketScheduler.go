@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fib/database"
+	"fib/models"
 	"fib/models/basket"
 	"log"
 	"time"
@@ -50,6 +51,19 @@ func processIntraHourBaskets() {
 
 			recordSystemHistory(slot.BasketVersionID, basket.ActionWentLive, "Auto-published at time slot start")
 			logScheduler("INTRA_HOUR Basket version " + string(rune(slot.BasketVersionID)) + " auto-PUBLISHED")
+
+			// Notify Subscribers (Async)
+			go func(v basket.BasketVersion, bName string) {
+				var subs []basket.BasketSubscription
+				if err := database.Database.Db.Where("basket_id = ? AND status = ? AND is_deleted = false", v.BasketID, basket.SubscriptionActive).Find(&subs).Error; err == nil {
+					for _, sub := range subs {
+						var u models.User
+						if err := database.Database.Db.Select("name, email").First(&u, sub.UserID).Error; err == nil && u.Email != "" {
+							SendNewVersionEmail(u.Email, u.Name, bName, v.VersionNumber)
+						}
+					}
+				}
+			}(slot.BasketVersion, slot.BasketVersion.Basket.Name)
 		}
 	}
 
