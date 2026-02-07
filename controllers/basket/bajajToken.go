@@ -271,15 +271,16 @@ func AddStocksWithPricing(c *fiber.Ctx) error {
 	// Check if stock already exists in this version
 	var existingStock basket.BasketStock
 	if err := db.Where("basket_version_id = ? AND stock_id = ? AND is_deleted = false", version.ID, reqData.StockID).First(&existingStock).Error; err == nil {
-		// Update existing stock entry
+		// Update existing stock entry - INCREMENT quantity instead of replacing
 		existingStock.Weightage = reqData.HoldingPercentage
 		existingStock.OrderType = orderType
 		existingStock.TargetPrice = reqData.TgtPrice
 		existingStock.StopLossPrice = reqData.SLPrice
-		existingStock.Units = reqData.Units
 		existingStock.Symbol = symbol
 		existingStock.Token = stockToken
-		existingStock.Quantity = reqData.Units
+		// Increment quantity and units
+		existingStock.Quantity += reqData.Units
+		existingStock.Units += reqData.Units
 		// Update price only if we got a valid one
 		if currentPrice > 0 {
 			existingStock.PriceAtCreation = currentPrice
