@@ -25,7 +25,7 @@ type Basket struct {
 
 	// Relations
 	Versions       []BasketVersion `gorm:"foreignKey:BasketID" json:"versions,omitempty"`
-	CurrentVersion *BasketVersion  `gorm:"foreignKey:CurrentVersionID" json:"currentVersion,omitempty"`
+	CurrentVersion *BasketVersion  `gorm:"foreignKey:CurrentVersionID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"currentVersion,omitempty"`
 }
 
 func (Basket) TableName() string {

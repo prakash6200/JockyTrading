@@ -68,6 +68,35 @@ func ConnectDb() {
 func runMigrations(db *gorm.DB) {
 	log.Println("Running Migrations...")
 
+	// Pre-migration: Fix existing NULL values in transactions table
+	db.Exec("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_type TEXT DEFAULT 'DEPOSIT'")
+	db.Exec("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS amount BIGINT DEFAULT 0")
+	db.Exec("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending'")
+
+	db.Exec("UPDATE transactions SET transaction_type = 'DEPOSIT' WHERE transaction_type IS NULL OR transaction_type = ''")
+	db.Exec("UPDATE transactions SET amount = 0 WHERE amount IS NULL")
+	db.Exec("UPDATE transactions SET status = 'pending' WHERE status IS NULL")
+
+	// Drop foreign key constraint on baskets.current_version_id if it exists (to avoid circular dependency)
+	db.Exec("ALTER TABLE baskets DROP CONSTRAINT IF EXISTS fk_baskets_current_version")
+
+	// First, create the baskets table without the CurrentVersion relation
+	db.Exec(`CREATE TABLE IF NOT EXISTS baskets (
+		id bigserial PRIMARY KEY,
+		created_at timestamptz,
+		updated_at timestamptz,
+		deleted_at timestamptz,
+		name text NOT NULL,
+		description text,
+		amc_id bigint NOT NULL,
+		basket_type varchar(20) NOT NULL,
+		current_version_id bigint,
+		subscription_fee decimal DEFAULT 0,
+		is_fee_based boolean DEFAULT false,
+		is_deleted boolean DEFAULT false
+	)`)
+
+	// Now migrate all tables - baskets already exists, others will be created
 	err := db.AutoMigrate(
 		&models.User{},
 		&models.OTP{},
@@ -95,6 +124,7 @@ func runMigrations(db *gorm.DB) {
 		&models.Maintenance{},
 		&models.Review{},
 		&models.BajajAccessToken{},
+		&models.WalletTransaction{},
 		&basket.Basket{},
 		&basket.BasketVersion{},
 		&basket.BasketTimeSlot{},
@@ -103,8 +133,6 @@ func runMigrations(db *gorm.DB) {
 		&basket.BasketHistory{},
 		&basket.BasketReview{},
 		&basket.BasketMessage{},
-		// Wallet
-		&models.WalletTransaction{},
 	)
 	if err != nil {
 		log.Fatalf("Migration failed: %v", err)
