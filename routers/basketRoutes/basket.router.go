@@ -44,6 +44,9 @@ func SetupAMCBasketRoutes(app *fiber.App) {
 	amcGroup.Post("/message", middleware.JWTMiddleware, basketController.AMCSendMessage)
 	amcGroup.Get("/messages/all", middleware.JWTMiddleware, basketController.GetAllMessages) // Global Inbox
 
+	// Detailed basket view (MUST come before /:id)
+	amcGroup.Get("/details/:id", middleware.JWTMiddleware, basketController.GetAMCBasketDetails)
+
 	// Get basket by ID (MUST be last - catches all /:id patterns)
 	amcGroup.Get("/:id", middleware.JWTMiddleware, basketController.GetBasketHistory)
 }

@@ -414,6 +414,7 @@ func GetMyBaskets(c *fiber.Ctx) error {
 
 	var baskets []basket.Basket
 	if err := query.Preload("Versions", "is_deleted = false").
+		Preload("Versions.Stocks", "is_deleted = false").
 		Offset(offset).Limit(*reqData.Limit).
 		Order("created_at DESC").
 		Find(&baskets).Error; err != nil {
@@ -566,4 +567,173 @@ func recordHistory(db interface{}, versionId uint, action string, actorId uint, 
 	}
 
 	database.Database.Db.Create(&history)
+}
+
+// GetAMCBasketDetails returns comprehensive basket details for AMC
+// Includes all versions, stocks, history, reviews, and subscribers
+func GetAMCBasketDetails(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+	basketId := c.Params("id")
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"AMC", "ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	db := database.Database.Db
+
+	// Verify basket ownership (AMC can only see their own baskets)
+	var existingBasket basket.Basket
+	query := db.Where("id = ? AND is_deleted = false", basketId)
+	if user.Role == "AMC" {
+		query = query.Where("amc_id = ?", userId)
+	}
+	if err := query.First(&existingBasket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Basket not found!", nil)
+	}
+
+	// Fetch all versions with stocks, history, and time slots
+	var versions []basket.BasketVersion
+	if err := db.Where("basket_id = ? AND is_deleted = false", basketId).
+		Preload("Stocks", "is_deleted = false").
+		Preload("TimeSlot").
+		Preload("History").
+		Order("version_number DESC").
+		Find(&versions).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch versions!", nil)
+	}
+
+	// Fetch reviews for this basket
+	var reviews []basket.BasketReview
+	db.Where("basket_id = ? AND is_deleted = false", basketId).
+		Preload("User").
+		Order("created_at DESC").
+		Find(&reviews)
+
+	// Build review response with user info
+	type ReviewDetail struct {
+		basket.BasketReview
+		UserName string `json:"userName"`
+	}
+	var reviewDetails []ReviewDetail
+	for _, r := range reviews {
+		var reviewUser models.User
+		db.Select("name").Where("id = ?", r.UserID).First(&reviewUser)
+		reviewDetails = append(reviewDetails, ReviewDetail{
+			BasketReview: r,
+			UserName:     reviewUser.Name,
+		})
+	}
+
+	// Fetch subscribers count and list (limited)
+	var totalSubscribers int64
+	var activeSubscribers int64
+	db.Model(&basket.BasketSubscription{}).Where("basket_id = ? AND is_deleted = false", basketId).Count(&totalSubscribers)
+	db.Model(&basket.BasketSubscription{}).Where("basket_id = ? AND status = ? AND is_deleted = false", basketId, basket.SubscriptionActive).Count(&activeSubscribers)
+
+	// Get recent 10 subscribers with details
+	var subscriptions []basket.BasketSubscription
+	db.Where("basket_id = ? AND is_deleted = false", basketId).
+		Order("subscribed_at DESC").
+		Limit(10).
+		Find(&subscriptions)
+
+	type SubscriberInfo struct {
+		basket.BasketSubscription
+		UserName  string `json:"userName"`
+		UserEmail string `json:"userEmail"`
+	}
+	var subscriberDetails []SubscriberInfo
+	for _, sub := range subscriptions {
+		var subUser models.User
+		db.Select("name, email").Where("id = ?", sub.UserID).First(&subUser)
+		subscriberDetails = append(subscriberDetails, SubscriberInfo{
+			BasketSubscription: sub,
+			UserName:           subUser.Name,
+			UserEmail:          subUser.Email,
+		})
+	}
+
+	// Get Bajaj Token for live pricing
+	var bajajToken models.BajajAccessToken
+	db.Order("created_at DESC").First(&bajajToken)
+	accessToken := bajajToken.Token
+
+	// Calculate version details with pricing
+	type VersionDetail struct {
+		basket.BasketVersion
+		InitialPrice float64 `json:"initialPrice"`
+		CurrentPrice float64 `json:"currentPrice"`
+		StockCount   int     `json:"stockCount"`
+	}
+	var versionDetails []VersionDetail
+
+	for _, v := range versions {
+		// Calculate initial price
+		var initialPrice float64 = 0
+		if v.PriceAtApproval > 0 {
+			initialPrice = v.PriceAtApproval
+		} else {
+			for _, s := range v.Stocks {
+				initialPrice += s.PriceAtCreation * float64(s.Quantity)
+			}
+		}
+
+		// Calculate current/achieved price
+		var currentPrice float64 = 0
+		if v.Status == basket.StatusExpired && v.PriceAtExpiry > 0 {
+			currentPrice = v.PriceAtExpiry
+		} else {
+			for _, s := range v.Stocks {
+				// Try live price first
+				if accessToken != "" && s.Token > 0 {
+					if livePrice, err := utils.GetBajajQuote(accessToken, s.Token); err == nil && livePrice > 0 {
+						currentPrice += livePrice * float64(s.Quantity)
+						continue
+					}
+				}
+				// Fallback to stored prices
+				if s.PriceAtApproval > 0 {
+					currentPrice += s.PriceAtApproval * float64(s.Quantity)
+				} else {
+					currentPrice += s.PriceAtCreation * float64(s.Quantity)
+				}
+			}
+		}
+
+		versionDetails = append(versionDetails, VersionDetail{
+			BasketVersion: v,
+			InitialPrice:  initialPrice,
+			CurrentPrice:  currentPrice,
+			StockCount:    len(v.Stocks),
+		})
+	}
+
+	// Calculate average rating
+	var avgRating float64 = 0
+	var totalRatings int64
+	db.Model(&basket.BasketReview{}).Where("basket_id = ? AND is_deleted = false AND status = ?", basketId, "APPROVED").Count(&totalRatings)
+	if totalRatings > 0 {
+		db.Model(&basket.BasketReview{}).Where("basket_id = ? AND is_deleted = false AND status = ?", basketId, "APPROVED").Select("COALESCE(AVG(rating), 0)").Scan(&avgRating)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Basket details fetched successfully!", fiber.Map{
+		"basket":   existingBasket,
+		"versions": versionDetails,
+		"reviews": fiber.Map{
+			"items":        reviewDetails,
+			"totalCount":   len(reviews),
+			"avgRating":    avgRating,
+			"totalRatings": totalRatings,
+		},
+		"subscribers": fiber.Map{
+			"total":      totalSubscribers,
+			"active":     activeSubscribers,
+			"recentList": subscriberDetails,
+		},
+		"stats": fiber.Map{
+			"totalVersions":    len(versions),
+			"currentVersionId": existingBasket.CurrentVersionID,
+		},
+	})
 }

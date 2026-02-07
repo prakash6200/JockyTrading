@@ -36,7 +36,7 @@ type BasketVersion struct {
 	IsDeleted   bool       `gorm:"default:false" json:"isDeleted"`
 
 	// Relations
-	Basket   Basket          `gorm:"foreignKey:BasketID" json:"basket,omitempty"`
+	Basket   Basket          `gorm:"foreignKey:BasketID" json:"-"`
 	Stocks   []BasketStock   `gorm:"foreignKey:BasketVersionID" json:"stocks,omitempty"`
 	TimeSlot *BasketTimeSlot `gorm:"foreignKey:BasketVersionID" json:"timeSlot,omitempty"`
 	History  []BasketHistory `gorm:"foreignKey:BasketVersionID" json:"history,omitempty"`
