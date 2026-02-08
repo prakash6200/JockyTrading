@@ -7,7 +7,6 @@ import (
 	"fib/models/basket"
 	"fib/utils"
 	"log"
-
 	"github.com/gofiber/fiber/v2"
 )
 

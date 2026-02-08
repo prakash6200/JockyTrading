@@ -47,19 +47,46 @@ func ListPendingApprovals(c *fiber.Ctx) error {
 	var total int64
 	query.Count(&total)
 
+	// Fetch versions with basket and stock details
 	var versions []basket.BasketVersion
-	if err := db.Model(&basket.BasketVersion{}).
-		Where("status = ? AND is_deleted = false", basket.StatusPendingApproval).
+	// Need to check specific basket type filter logic again
+	q := db.Model(&basket.BasketVersion{}).
+		Where("basket_versions.status = ? AND basket_versions.is_deleted = false", basket.StatusPendingApproval).
 		Preload("Basket").
 		Preload("Stocks", "is_deleted = false").
-		Offset(offset).Limit(*reqData.Limit).
-		Order("submitted_at ASC").
+		Joins("JOIN baskets ON baskets.id = basket_versions.basket_id")
+
+	if reqData.BasketType != nil && *reqData.BasketType != "" {
+		q = q.Where("baskets.basket_type = ?", *reqData.BasketType)
+	}
+
+	if err := q.Offset(offset).Limit(*reqData.Limit).
+		Order("basket_versions.submitted_at ASC").
 		Find(&versions).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch pending approvals!", nil)
 	}
 
+	// Prepare response with extra details
+	type PendingVersionResponse struct {
+		basket.BasketVersion
+		BasketName string `json:"basketName"`
+		AMCName    string `json:"amcName"`
+	}
+
+	var response []PendingVersionResponse
+	for _, v := range versions {
+		var amc models.User
+		db.Select("name").Where("id = ?", v.Basket.AMCID).First(&amc)
+
+		response = append(response, PendingVersionResponse{
+			BasketVersion: v,
+			BasketName:    v.Basket.Name,
+			AMCName:       amc.Name,
+		})
+	}
+
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Pending approvals fetched!", fiber.Map{
-		"versions": versions,
+		"versions": response,
 		"pagination": fiber.Map{
 			"total": total,
 			"page":  *reqData.Page,
