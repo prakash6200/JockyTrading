@@ -20,6 +20,8 @@ type Config struct {
 
 	EmailSender string
 	Password    string // SMTP Password
+	SMTPHost    string
+	SMTPPort    string
 
 	SandboxApiURL     string // Added for Sandbox API URL
 	SandboxApiKey     string // Added for Sandbox API Key
@@ -51,6 +53,8 @@ func LoadConfig() {
 
 		EmailSender: getEnv("EMAIL_SENDER", "defaultSecret"),
 		Password:    getEnv("PASSWORD", "defaultSecret"),
+		SMTPHost:    getEnv("SMTP_HOST", "smtp.gmail.com"),
+		SMTPPort:    getEnv("SMTP_PORT", "587"),
 
 		SandboxApiURL:     getEnv("SANDBOX_API_URL", "https://api.sandbox.credpay.io/v1/"),
 		SandboxApiKey:     getEnv("SANDBOX_API_KEY", "key_live_HZYsCB58PuDIMsyhCW2Uvxq576V6Pr6n"),

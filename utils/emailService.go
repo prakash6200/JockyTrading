@@ -9,8 +9,8 @@ import (
 
 // Generic Send Email
 func SendEmail(to []string, subject string, htmlBody string) error {
-	smtpHost := "smtp.gmail.com"
-	smtpPort := "587"
+	smtpHost := config.AppConfig.SMTPHost
+	smtpPort := config.AppConfig.SMTPPort
 
 	from := config.AppConfig.EmailSender
 	password := config.AppConfig.Password
