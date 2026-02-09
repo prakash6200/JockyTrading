@@ -10,7 +10,8 @@ import (
 func Subscribe() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		reqData := new(struct {
-			BasketID uint `json:"basketId"`
+			BasketID uint   `json:"basketId"`
+			Period   string `json:"period"` // MONTHLY or YEARLY (optional, default: MONTHLY)
 		})
 
 		if err := c.BodyParser(reqData); err != nil {
@@ -19,6 +20,13 @@ func Subscribe() fiber.Handler {
 
 		if reqData.BasketID == 0 {
 			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Basket ID is required!", nil)
+		}
+
+		// Validate period - default to MONTHLY if not provided
+		if reqData.Period == "" {
+			reqData.Period = "MONTHLY"
+		} else if reqData.Period != "MONTHLY" && reqData.Period != "YEARLY" {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Period must be MONTHLY or YEARLY!", nil)
 		}
 
 		c.Locals("validatedSubscribe", reqData)

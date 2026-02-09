@@ -61,6 +61,11 @@ func SetupAdminBasketRoutes(app *fiber.App) {
 	adminGroup.Get("/details/:id", middleware.JWTMiddleware, basketController.GetAdminBasketDetails)
 	adminGroup.Get("/subscribers", middleware.JWTMiddleware, basketController.GetAllSubscribers)
 
+	// Subscription management (Admin)
+	adminGroup.Get("/subscriptions", middleware.JWTMiddleware, basketController.GetAllActiveSubscriptions)
+	adminGroup.Get("/subscriptions/expiring", middleware.JWTMiddleware, basketController.GetExpiringSubscriptions)
+	adminGroup.Post("/subscription/send-reminder", middleware.JWTMiddleware, basketController.SendExpiryReminder)
+
 	// Approval management
 	adminGroup.Get("/pending", basketValidator.ListPendingApprovals(), middleware.JWTMiddleware, basketController.ListPendingApprovals)
 	adminGroup.Post("/approve", basketValidator.ApproveBasket(), middleware.JWTMiddleware, basketController.ApproveBasket)
@@ -89,9 +94,8 @@ func SetupAdminBasketRoutes(app *fiber.App) {
 func SetupUserBasketRoutes(app *fiber.App) {
 	userGroup := app.Group("/basket")
 
-	// User - Subscribe and view
+	// User - Subscribe
 	userGroup.Post("/subscribe", middleware.JWTMiddleware, basketValidator.Subscribe(), basketController.Subscribe)
-	userGroup.Get("/my-subscriptions", basketValidator.GetMySubscriptions(), middleware.JWTMiddleware, basketController.GetMySubscriptions)
 
 	// Reviews (User)
 	userGroup.Post("/:id/review", middleware.JWTMiddleware, basketController.SubmitReview)
@@ -101,6 +105,10 @@ func SetupUserBasketRoutes(app *fiber.App) {
 	userGroup.Get("/list", basketValidator.ListPublishedBaskets(), middleware.JWTMiddleware, basketController.ListPublishedBaskets)
 	userGroup.Get("/intra-hour/live", middleware.JWTMiddleware, basketController.GetLiveIntraHourBaskets)
 	userGroup.Get("/intra-hour/upcoming", middleware.JWTMiddleware, basketController.GetUpcomingIntraHourBaskets)
+
+	// My Basket & Subscriptions
+	userGroup.Get("/my-basket", basketValidator.GetMySubscriptions(), middleware.JWTMiddleware, basketController.GetMySubscriptions)
+	userGroup.Get("/my-subscriptions", middleware.JWTMiddleware, basketController.GetMyBasket)
 
 	// Messaging (User)
 	userGroup.Post("/message", middleware.JWTMiddleware, basketController.UserSendMessage)

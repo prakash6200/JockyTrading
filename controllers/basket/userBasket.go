@@ -246,7 +246,8 @@ func Subscribe(c *fiber.Ctx) error {
 	}
 
 	reqData, ok := c.Locals("validatedSubscribe").(*struct {
-		BasketID uint `json:"basketId"`
+		BasketID uint   `json:"basketId"`
+		Period   string `json:"period"`
 	})
 	if !ok {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
@@ -293,25 +294,37 @@ func Subscribe(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusConflict, false, "Already subscribed to this basket!", nil)
 	}
 
+	// Determine subscription fee based on period
+	var subscriptionFee float64
+	if reqData.Period == basket.PeriodYearly {
+		subscriptionFee = existingBasket.YearlySubscriptionFee
+		// Fallback to monthly * 12 if yearly not set
+		if subscriptionFee == 0 && existingBasket.SubscriptionFee > 0 {
+			subscriptionFee = existingBasket.SubscriptionFee * 12
+		}
+	} else {
+		subscriptionFee = existingBasket.SubscriptionFee
+	}
+
 	// Check balance for fee-based baskets
 	if existingBasket.IsFeeBased {
-		if float64(user.MainBalance) < existingBasket.SubscriptionFee {
+		if float64(user.MainBalance) < subscriptionFee {
 			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Insufficient balance for subscription!", nil)
 		}
 
 		// Record transaction and deduct fee
 		balanceBefore := float64(user.MainBalance)
-		user.MainBalance -= uint(existingBasket.SubscriptionFee)
+		user.MainBalance -= uint(subscriptionFee)
 
 		// Create wallet transaction record
 		walletTxn := models.WalletTransaction{
 			UserID:          userId,
 			TransactionType: models.TransactionTypeSubscription,
-			Amount:          existingBasket.SubscriptionFee,
+			Amount:          subscriptionFee,
 			BalanceBefore:   balanceBefore,
 			BalanceAfter:    float64(user.MainBalance),
 			Status:          models.TransactionStatusCompleted,
-			Description:     "Subscription: " + existingBasket.Name,
+			Description:     "Subscription (" + reqData.Period + "): " + existingBasket.Name,
 			ReferenceType:   "basket",
 			ReferenceID:     existingBasket.ID,
 			ReferenceName:   existingBasket.Name,
@@ -327,16 +340,18 @@ func Subscribe(c *fiber.Ctx) error {
 
 	// Create subscription
 	subscription := basket.BasketSubscription{
-		UserID:            userId,
-		BasketID:          reqData.BasketID,
-		BasketVersionID:   version.ID,
-		SubscribedAt:      time.Now(),
-		SubscriptionPrice: existingBasket.SubscriptionFee,
-		BasketPrice:       version.PriceAtApproval,
-		Status:            basket.SubscriptionActive,
+		UserID:             userId,
+		BasketID:           reqData.BasketID,
+		BasketVersionID:    version.ID,
+		SubscribedAt:       time.Now(),
+		SubscriptionPrice:  subscriptionFee,
+		BasketPrice:        version.PriceAtApproval,
+		Status:             basket.SubscriptionActive,
+		SubscriptionPeriod: reqData.Period,
 	}
 
-	// Set expiry based on basket type
+	// Set expiry based on basket type and period
+	now := time.Now()
 	switch existingBasket.BasketType {
 	case basket.BasketTypeIntraHour:
 		// Expires when time slot ends
@@ -346,11 +361,17 @@ func Subscribe(c *fiber.Ctx) error {
 		}
 	case basket.BasketTypeIntraday:
 		// Expires at market close
-		marketClose := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 15, 30, 0, 0, time.FixedZone("IST", 5*60*60+30*60))
+		marketClose := time.Date(now.Year(), now.Month(), now.Day(), 15, 30, 0, 0, time.FixedZone("IST", 5*60*60+30*60))
 		subscription.ExpiresAt = &marketClose
 	default:
-		// DELIVERY: No expiry
-		subscription.ExpiresAt = nil
+		// DELIVERY: Expiry based on subscription period
+		var expiryDate time.Time
+		if reqData.Period == basket.PeriodYearly {
+			expiryDate = now.AddDate(1, 0, 0) // 1 year
+		} else {
+			expiryDate = now.AddDate(0, 1, 0) // 1 month (30 days approx)
+		}
+		subscription.ExpiresAt = &expiryDate
 	}
 
 	if err := db.Create(&subscription).Error; err != nil {
@@ -364,6 +385,88 @@ func Subscribe(c *fiber.Ctx) error {
 	utils.SendSubscriptionEmail(user.Email, user.Name, existingBasket.Name)
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Subscribed successfully!", subscription)
+}
+
+// GetMyBasket returns user's active subscribed baskets (simplified view)
+func GetMyBasket(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false", userId).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	db := database.Database.Db
+
+	// Auto-expire subscriptions that have passed their expiry date
+	now := time.Now()
+	db.Model(&basket.BasketSubscription{}).
+		Where("user_id = ? AND status = ? AND expires_at IS NOT NULL AND expires_at < ?", userId, basket.SubscriptionActive, now).
+		Updates(map[string]interface{}{"status": basket.SubscriptionExpired})
+
+	// Get only ACTIVE subscriptions
+	var subscriptions []basket.BasketSubscription
+	if err := db.
+		Where("user_id = ? AND status = ? AND is_deleted = false", userId, basket.SubscriptionActive).
+		Preload("Basket").
+		Preload("Basket.CurrentVersion.Stocks", "is_deleted = false").
+		Preload("BasketVersion.Stocks", "is_deleted = false").
+		Order("subscribed_at DESC").
+		Find(&subscriptions).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch baskets!", nil)
+	}
+
+	// Populate stock names
+	for i := range subscriptions {
+		if subscriptions[i].Basket.CurrentVersion != nil {
+			for j := range subscriptions[i].Basket.CurrentVersion.Stocks {
+				stock := &subscriptions[i].Basket.CurrentVersion.Stocks[j]
+				if stock.StockID > 0 {
+					var stockData models.Stocks
+					if err := db.Select("name, full_name").Where("id = ?", stock.StockID).First(&stockData).Error; err == nil {
+						if stockData.FullName != "" {
+							stock.StockName = stockData.FullName
+						} else {
+							stock.StockName = stockData.Name
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Simplified response - just the active baskets (without stock details)
+	type BasketResponse struct {
+		SubscriptionID     uint       `json:"subscriptionId"`
+		BasketID           uint       `json:"basketId"`
+		BasketName         string     `json:"basketName"`
+		BasketDescription  string     `json:"basketDescription"`
+		BasketType         string     `json:"basketType"`
+		SubscribedAt       time.Time  `json:"subscribedAt"`
+		ExpiresAt          *time.Time `json:"expiresAt"`
+		SubscriptionPeriod string     `json:"subscriptionPeriod"`
+		SubscriptionPrice  float64    `json:"subscriptionPrice"` // Total paid amount
+	}
+
+	var response []BasketResponse
+	for _, sub := range subscriptions {
+		response = append(response, BasketResponse{
+			SubscriptionID:     sub.ID,
+			BasketID:           sub.BasketID,
+			BasketName:         sub.Basket.Name,
+			BasketDescription:  sub.Basket.Description,
+			BasketType:         sub.Basket.BasketType,
+			SubscribedAt:       sub.SubscribedAt,
+			ExpiresAt:          sub.ExpiresAt,
+			SubscriptionPeriod: sub.SubscriptionPeriod,
+			SubscriptionPrice:  sub.SubscriptionPrice,
+		})
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "My baskets fetched!", fiber.Map{
+		"baskets": response,
+		"total":   len(response),
+	})
 }
 
 // GetMySubscriptions returns user's subscriptions with performance
@@ -387,10 +490,20 @@ func GetMySubscriptions(c *fiber.Ctx) error {
 	db := database.Database.Db
 	offset := (*reqData.Page - 1) * (*reqData.Limit)
 
+	// Auto-expire subscriptions that have passed their expiry date
+	now := time.Now()
+	db.Model(&basket.BasketSubscription{}).
+		Where("user_id = ? AND status = ? AND expires_at IS NOT NULL AND expires_at < ?", userId, basket.SubscriptionActive, now).
+		Updates(map[string]interface{}{"status": basket.SubscriptionExpired})
+
+	// Default to ACTIVE status if not specified
 	query := db.Model(&basket.BasketSubscription{}).Where("user_id = ? AND is_deleted = false", userId)
 
 	if reqData.Status != nil && *reqData.Status != "" {
 		query = query.Where("status = ?", *reqData.Status)
+	} else {
+		// Default: show only ACTIVE subscriptions
+		query = query.Where("status = ?", basket.SubscriptionActive)
 	}
 
 	var total int64

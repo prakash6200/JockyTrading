@@ -63,6 +63,9 @@ func main() {
 	// Start basket scheduler for auto-publish/expire
 	utils.InitializeBasketSchedulers()
 
+	// Start subscription scheduler for expiry reminders
+	utils.InitializeSubscriptionScheduler()
+
 	// startCron()
 
 	log.Printf("Server is running on port %s", config.AppConfig.Port)
