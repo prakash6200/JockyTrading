@@ -299,6 +299,77 @@ func AdminGetPendingCertificates(c *fiber.Ctx) error {
 	})
 }
 
+// AdminGetIssuedCertificates gets all issued certificates
+func AdminGetIssuedCertificates(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = ?", userId, false).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
+	}
+
+	if user.Role != "ADMIN" {
+		return middleware.JsonResponse(c, fiber.StatusForbidden, false, "Access denied! Admin only.", nil)
+	}
+
+	reqData, _ := c.Locals("validatedCertificateQuery").(*struct {
+		Page  *int `json:"page"`
+		Limit *int `json:"limit"`
+	})
+
+	page := 1
+	limit := 10
+	if reqData != nil && reqData.Page != nil && *reqData.Page > 0 {
+		page = *reqData.Page
+	}
+	if reqData != nil && reqData.Limit != nil && *reqData.Limit > 0 {
+		limit = *reqData.Limit
+	}
+	offset := (page - 1) * limit
+
+	var total int64
+	database.Database.Db.Model(&courseModels.Certificate{}).Where("is_deleted = ?", false).Count(&total)
+
+	type CertificateWithDetails struct {
+		courseModels.Certificate
+		UserName   string `json:"user_name"`
+		UserEmail  string `json:"user_email"`
+		CourseName string `json:"course_name"`
+	}
+
+	var certificates []courseModels.Certificate
+	if err := database.Database.Db.Where("is_deleted = ?", false).
+		Offset(offset).Limit(limit).Order("issued_at desc").Find(&certificates).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch certificates!", nil)
+	}
+
+	result := make([]CertificateWithDetails, len(certificates))
+	for i, cert := range certificates {
+		var certUser models.User
+		var course courseModels.Course
+		database.Database.Db.Select("name, email").Where("id = ?", cert.UserID).First(&certUser)
+		database.Database.Db.Select("title").Where("id = ?", cert.CourseID).First(&course)
+		result[i] = CertificateWithDetails{
+			Certificate: cert,
+			UserName:    certUser.Name,
+			UserEmail:   certUser.Email,
+			CourseName:  course.Title,
+		}
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Issued certificates fetched successfully!", fiber.Map{
+		"certificates": result,
+		"pagination": fiber.Map{
+			"total": total,
+			"page":  page,
+			"limit": limit,
+		},
+	})
+}
+
 // AdminApproveCertificate approves a certificate request
 func AdminApproveCertificate(c *fiber.Ctx) error {
 	userId, ok := c.Locals("userId").(uint)

@@ -53,6 +53,7 @@ func SetupAdminCourseRoutes(app *fiber.App) {
 	// Certificate Management
 	certGroup := app.Group("/admin/certificates")
 	certGroup.Get("/pending", middleware.JWTMiddleware, validators.GetPendingCertificates(), controllers.AdminGetPendingCertificates)
+	certGroup.Get("/issued", middleware.JWTMiddleware, validators.GetPendingCertificates(), controllers.AdminGetIssuedCertificates)
 
 	certRequestGroup := app.Group("/admin/certificate")
 	certRequestGroup.Post("/:request_id/approve", middleware.JWTMiddleware, validators.ApproveCertificate(), controllers.AdminApproveCertificate)
