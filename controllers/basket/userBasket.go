@@ -400,11 +400,48 @@ func GetMySubscriptions(c *fiber.Ctx) error {
 	if err := query.
 		Preload("Basket").
 		Preload("Basket.CurrentVersion.Stocks", "is_deleted = false").
-		Preload("BasketVersion"). // Keep original version info just in case, but no stocks
+		Preload("BasketVersion.Stocks", "is_deleted = false"). // Load basketVersion stocks as well
 		Offset(offset).Limit(*reqData.Limit).
 		Order("subscribed_at DESC").
 		Find(&subscriptions).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch subscriptions!", nil)
+	}
+
+	// Populate stock names from stocks table
+	for i := range subscriptions {
+		// Populate stock names for basket.currentVersion.stocks
+		if subscriptions[i].Basket.CurrentVersion != nil {
+			for j := range subscriptions[i].Basket.CurrentVersion.Stocks {
+				stock := &subscriptions[i].Basket.CurrentVersion.Stocks[j]
+				if stock.StockID > 0 {
+					var stockData models.Stocks
+					if err := db.Select("name, full_name").Where("id = ?", stock.StockID).First(&stockData).Error; err == nil {
+						// Prefer full_name, fallback to name
+						if stockData.FullName != "" {
+							stock.StockName = stockData.FullName
+						} else {
+							stock.StockName = stockData.Name
+						}
+					}
+				}
+			}
+		}
+
+		// Populate stock names for basketVersion.stocks
+		for j := range subscriptions[i].BasketVersion.Stocks {
+			stock := &subscriptions[i].BasketVersion.Stocks[j]
+			if stock.StockID > 0 {
+				var stockData models.Stocks
+				if err := db.Select("name, full_name").Where("id = ?", stock.StockID).First(&stockData).Error; err == nil {
+					// Prefer full_name, fallback to name
+					if stockData.FullName != "" {
+						stock.StockName = stockData.FullName
+					} else {
+						stock.StockName = stockData.Name
+					}
+				}
+			}
+		}
 	}
 
 	// Prepare response with pricing

@@ -19,6 +19,7 @@ type BasketStock struct {
 	Token           int     `gorm:"default:0" json:"token"`                    // Exchange token for Bajaj API
 	Symbol          string  `gorm:"type:varchar(50);default:''" json:"symbol"` // Stock symbol
 	Units           int     `gorm:"default:1" json:"units"`                    // Number of units
+	StockName       string  `gorm:"-" json:"stockName"`                        // Stock full name (populated via join)
 	IsDeleted       bool    `gorm:"default:false" json:"isDeleted"`
 
 	// Relations
