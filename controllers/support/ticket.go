@@ -376,3 +376,55 @@ func UserCloseTicket(c *fiber.Ctx) error {
 
 	return closeTicket(c, userId, false)
 }
+
+// AdminSupportStats returns statistics for support tickets
+func AdminSupportStats(c *fiber.Ctx) error {
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusForbidden, false, "Access denied!", nil)
+	}
+
+	db := database.Database.Db
+	var totalTickets int64
+	var openTickets int64
+	var closedTickets int64
+	var pendingTickets int64
+
+	// Status counts
+	db.Model(&models.SupportTicket{}).Where("is_deleted = false").Count(&totalTickets)
+	db.Model(&models.SupportTicket{}).Where("is_deleted = false AND UPPER(status) = ?", "OPEN").Count(&openTickets)
+	db.Model(&models.SupportTicket{}).Where("is_deleted = false AND UPPER(status) = ?", "CLOSED").Count(&closedTickets)
+	db.Model(&models.SupportTicket{}).Where("is_deleted = false AND UPPER(status) = ?", "PENDING").Count(&pendingTickets)
+
+	// Priority counts
+	type PriorityCount struct {
+		Priority string
+		Count    int64
+	}
+	var priorityCounts []PriorityCount
+	db.Model(&models.SupportTicket{}).Select("priority, count(*) as count").Where("is_deleted = false").Group("priority").Scan(&priorityCounts)
+
+	// Category counts
+	type CategoryCount struct {
+		Category string
+		Count    int64
+	}
+	var categoryCounts []CategoryCount
+	db.Model(&models.SupportTicket{}).Select("category, count(*) as count").Where("is_deleted = false").Group("category").Scan(&categoryCounts)
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Support stats fetched successfully!", fiber.Map{
+		"total": totalTickets,
+		"status": fiber.Map{
+			"open":    openTickets,
+			"closed":  closedTickets,
+			"pending": pendingTickets,
+		},
+		"priority": priorityCounts,
+		"category": categoryCounts,
+	})
+}

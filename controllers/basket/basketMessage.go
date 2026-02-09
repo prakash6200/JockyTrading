@@ -17,10 +17,10 @@ import (
 func AMCSendMessage(c *fiber.Ctx) error {
 	userId := c.Locals("userId").(uint)
 
-	// Validate AMC
-	var amc models.User
-	if err := database.Database.Db.Where("id = ? AND role = 'AMC' AND is_deleted = false", userId).First(&amc).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! AMC role required.", nil)
+	// Validate AMC or ADMIN
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND (role = 'AMC' OR role = 'ADMIN' OR role = 'SUPER-ADMIN') AND is_deleted = false", userId).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied! AMC or Admin role required.", nil)
 	}
 
 	reqData := new(struct {
@@ -43,10 +43,15 @@ func AMCSendMessage(c *fiber.Ctx) error {
 
 	db := database.Database.Db
 
-	// Verify AMC owns the basket
+	// Verify Basket exists (and if AMC, that they own it)
 	var existingBasket basket.Basket
-	if err := db.Where("id = ? AND amc_id = ? AND is_deleted = false", reqData.BasketID, userId).First(&existingBasket).Error; err != nil {
-		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Basket not found or not owned by you!", nil)
+	basketQuery := db.Where("id = ? AND is_deleted = false", reqData.BasketID)
+	if user.Role == "AMC" {
+		basketQuery = basketQuery.Where("amc_id = ?", userId)
+	}
+
+	if err := basketQuery.First(&existingBasket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Basket not found or permission denied!", nil)
 	}
 
 	isBroadcast := true
@@ -170,42 +175,49 @@ func GetAllMessages(c *fiber.Ctx) error {
 		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "User not found!", nil)
 	}
 
-	// Unified Logic: Users see messages for baskets they OWN + baskets they SUBSCRIBE to
-
-	// 1. Get Owned Baskets (If AMC/Admin)
-	var ownedBasketIDs []uint
-	if user.Role == "AMC" || user.Role == "ADMIN" || user.Role == "SUPER-ADMIN" {
-		db.Model(&basket.Basket{}).Where("amc_id = ?", userId).Pluck("id", &ownedBasketIDs)
-	}
-
-	// 2. Get Subscribed Baskets (All Roles)
-	var subBasketIDs []uint
-	db.Model(&basket.BasketSubscription{}).Where("user_id = ?", userId).Pluck("basket_id", &subBasketIDs)
-
-	// 3. Fetch Messages
 	var messages []basket.BasketMessage
 	query := db.Model(&basket.BasketMessage{})
 
-	conditions := db.Where("false") // Default false to OR conditions together
+	if user.Role == "ADMIN" || user.Role == "SUPER-ADMIN" {
+		// Admin sees ALL messages
+		if err := query.Order("created_at DESC").Find(&messages).Error; err != nil {
+			return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch messages!", nil)
+		}
+	} else {
+		// Non-Admin Logic (AMC or User)
 
-	// Condition A: Messages for Owned Baskets (See EVERYTHING)
-	if len(ownedBasketIDs) > 0 {
-		conditions = conditions.Or("basket_id IN ?", ownedBasketIDs)
+		// 1. Get Owned Baskets (If AMC)
+		var ownedBasketIDs []uint
+		if user.Role == "AMC" {
+			db.Model(&basket.Basket{}).Where("amc_id = ?", userId).Pluck("id", &ownedBasketIDs)
+		}
+
+		// 2. Get Subscribed Baskets (All Roles)
+		var subBasketIDs []uint
+		db.Model(&basket.BasketSubscription{}).Where("user_id = ?", userId).Pluck("basket_id", &subBasketIDs)
+
+		// 3. Fetch Messages
+		conditions := db.Where("false") // Default false to OR conditions together
+
+		// Condition A: Messages for Owned Baskets (See EVERYTHING)
+		if len(ownedBasketIDs) > 0 {
+			conditions = conditions.Or("basket_id IN ?", ownedBasketIDs)
+		}
+
+		// Condition B: Messages for Subscribed Baskets (Broadcasts OR Direct DMs)
+		if len(subBasketIDs) > 0 {
+			conditions = conditions.Or(
+				db.Where("basket_id IN ?", subBasketIDs).
+					Where("is_broadcast = true OR sender_id = ? OR target_user_id = ?", userId, userId),
+			)
+		}
+
+		// Condition C: Direct Messages where I am the Sender or Receiver (regardless of basket relation, e.g. historical)
+		conditions = conditions.Or("sender_id = ?", userId).Or("target_user_id = ?", userId)
+
+		// Apply filter
+		query.Where(conditions).Order("created_at DESC").Find(&messages)
 	}
-
-	// Condition B: Messages for Subscribed Baskets (Broadcasts OR Direct DMs)
-	if len(subBasketIDs) > 0 {
-		conditions = conditions.Or(
-			db.Where("basket_id IN ?", subBasketIDs).
-				Where("is_broadcast = true OR sender_id = ? OR target_user_id = ?", userId, userId),
-		)
-	}
-
-	// Condition C: Direct Messages where I am the Sender or Receiver (regardless of basket relation, e.g. historical)
-	conditions = conditions.Or("sender_id = ?", userId).Or("target_user_id = ?", userId)
-
-	// Apply filter
-	query.Where(conditions).Order("created_at DESC").Find(&messages)
 
 	// Enrich
 	type MessageResponse struct {
