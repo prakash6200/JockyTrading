@@ -107,8 +107,8 @@ func SetupUserBasketRoutes(app *fiber.App) {
 	userGroup.Get("/intra-hour/upcoming", middleware.JWTMiddleware, basketController.GetUpcomingIntraHourBaskets)
 
 	// My Basket & Subscriptions
-	userGroup.Get("/my-basket", basketValidator.GetMySubscriptions(), middleware.JWTMiddleware, basketController.GetMySubscriptions)
-	userGroup.Get("/my-subscriptions", middleware.JWTMiddleware, basketController.GetMyBasket)
+	userGroup.Get("/my-basket", middleware.JWTMiddleware, basketController.GetMyBasket)
+	userGroup.Get("/my-subscriptions", basketValidator.GetMySubscriptions(), middleware.JWTMiddleware, basketController.GetMySubscriptions)
 
 	// Messaging (User)
 	userGroup.Post("/message", middleware.JWTMiddleware, basketController.UserSendMessage)

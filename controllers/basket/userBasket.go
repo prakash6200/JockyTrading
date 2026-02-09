@@ -33,12 +33,17 @@ func ListPublishedBaskets(c *fiber.Ctx) error {
 	db := database.Database.Db
 	offset := (*reqData.Page - 1) * (*reqData.Limit)
 
-	// Get baskets with PUBLISHED or SCHEDULED versions
+	now := time.Now()
+	// Get baskets with PUBLISHED or SCHEDULED versions that haven't expired based on time slot
+	subQuery := db.Model(&basket.BasketVersion{}).Select("basket_versions.id").
+		Joins("LEFT JOIN basket_time_slots ON basket_time_slots.basket_version_id = basket_versions.id").
+		Joins("JOIN baskets ON baskets.id = basket_versions.basket_id").
+		Where("basket_versions.status IN ? AND basket_versions.is_deleted = false", []string{basket.StatusPublished, basket.StatusScheduled}).
+		Where("(baskets.basket_type != ? OR basket_time_slots.end_time IS NULL OR basket_time_slots.end_time > ?)", basket.BasketTypeIntraHour, now)
+
 	query := db.Model(&basket.Basket{}).
 		Where("is_deleted = false").
-		Where("current_version_id IN (?)",
-			db.Model(&basket.BasketVersion{}).Select("id").
-				Where("status IN ? AND is_deleted = false", []string{basket.StatusPublished, basket.StatusScheduled}))
+		Where("current_version_id IN (?)", subQuery)
 
 	if reqData.Search != nil && *reqData.Search != "" {
 		search := "%" + *reqData.Search + "%"
@@ -285,7 +290,12 @@ func Subscribe(c *fiber.Ctx) error {
 				return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "INTRA_HOUR basket is not currently LIVE!", nil)
 			}
 		}
-		// If SCHEDULED, allow pre-subscription
+		// If SCHEDULED, allow pre-subscription only if it's in the future
+		if version.Status == basket.StatusScheduled {
+			if now.After(timeSlot.StartTime) {
+				return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "INTRA_HOUR basket scheduled time has already passed!", nil)
+			}
+		}
 	}
 
 	// Check if already subscribed
@@ -360,8 +370,22 @@ func Subscribe(c *fiber.Ctx) error {
 			subscription.ExpiresAt = &timeSlot.EndTime
 		}
 	case basket.BasketTypeIntraday:
-		// Expires at market close
-		marketClose := time.Date(now.Year(), now.Month(), now.Day(), 15, 30, 0, 0, time.FixedZone("IST", 5*60*60+30*60))
+		// Expires at market close (3:30 PM IST)
+		loc, _ := time.LoadLocation("Asia/Kolkata")
+		if loc == nil {
+			loc = time.FixedZone("IST", 5*60*60+30*60)
+		}
+
+		marketClose := time.Date(now.Year(), now.Month(), now.Day(), 15, 30, 0, 0, loc)
+
+		// If already past market close today, set to next business day
+		if now.After(marketClose) {
+			marketClose = marketClose.AddDate(0, 0, 1)
+			// Skip weekends (Saturday and Sunday)
+			for marketClose.Weekday() == time.Saturday || marketClose.Weekday() == time.Sunday {
+				marketClose = marketClose.AddDate(0, 0, 1)
+			}
+		}
 		subscription.ExpiresAt = &marketClose
 	default:
 		// DELIVERY: Expiry based on subscription period
