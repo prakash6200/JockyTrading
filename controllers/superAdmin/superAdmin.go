@@ -28,8 +28,9 @@ func UserList(c *fiber.Ctx) error {
 
 	// Retrieve validated request data
 	reqData, ok := c.Locals("list").(*struct {
-		Page  *int `json:"page"`
-		Limit *int `json:"limit"`
+		Page  *int    `json:"page"`
+		Limit *int    `json:"limit"`
+		Role  *string `json:"role"`
 	})
 	if !ok {
 		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
@@ -40,19 +41,32 @@ func UserList(c *fiber.Ctx) error {
 	var users []models.User
 	var total int64
 
-	if err := database.Database.Db.
-		Where("is_deleted = ? AND role = ?", false, "USER").
+	db := database.Database.Db
+
+	// Build query based on role filter
+	query := db.Where("is_deleted = ?", false)
+	countQuery := db.Model(&models.User{}).Where("is_deleted = ?", false)
+
+	if reqData.Role != nil && *reqData.Role != "" {
+		// Filter by specific role
+		query = query.Where("role = ?", *reqData.Role)
+		countQuery = countQuery.Where("role = ?", *reqData.Role)
+	} else {
+		// Default: exclude ADMIN users
+		query = query.Where("role != ?", "ADMIN")
+		countQuery = countQuery.Where("role != ?", "ADMIN")
+	}
+
+	if err := query.
 		Offset(offset).
 		Limit(*reqData.Limit).
+		Order("created_at DESC").
 		Find(&users).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch user list!", nil)
 	}
 
 	// Count total records
-	database.Database.Db.
-		Model(&models.User{}).
-		Where("is_deleted = ? AND role != ?", false, "ADMIN").
-		Count(&total)
+	countQuery.Count(&total)
 
 	// Response structure
 	response := map[string]interface{}{
@@ -65,6 +79,66 @@ func UserList(c *fiber.Ctx) error {
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "User List.", response)
+}
+
+// UserStats returns statistics about all users
+func UserStats(c *fiber.Ctx) error {
+	// Retrieve userId from JWT middleware
+	userId, ok := c.Locals("userId").(uint)
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Unauthorized!", nil)
+	}
+
+	// Check if user is ADMIN
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role = ?", userId, "ADMIN").First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	db := database.Database.Db
+
+	// Get counts by role
+	var totalUsers int64
+	var totalAMC int64
+	var totalDistributors int64
+	var totalAdmins int64
+
+	db.Model(&models.User{}).Where("is_deleted = false AND role = ?", "USER").Count(&totalUsers)
+	db.Model(&models.User{}).Where("is_deleted = false AND role = ?", "AMC").Count(&totalAMC)
+	db.Model(&models.User{}).Where("is_deleted = false AND role = ?", "DISTRIBUTOR").Count(&totalDistributors)
+	db.Model(&models.User{}).Where("is_deleted = false AND role = ?", "ADMIN").Count(&totalAdmins)
+
+	// Get verified counts
+	var emailVerified int64
+	var mobileVerified int64
+	var kycVerified int64
+
+	db.Model(&models.User{}).Where("is_deleted = false AND is_email_verified = true").Count(&emailVerified)
+	db.Model(&models.User{}).Where("is_deleted = false AND is_mobile_verified = true").Count(&mobileVerified)
+
+	// Count verified KYC
+	db.Model(&models.UserKYC{}).Where("is_verified = ? AND is_deleted = ?", true, false).Count(&kycVerified)
+
+	// Get total count excluding ADMIN
+	var totalAll int64
+	db.Model(&models.User{}).Where("is_deleted = false AND role != ?", "ADMIN").Count(&totalAll)
+
+	response := map[string]interface{}{
+		"totalUsers": totalAll,
+		"byRole": map[string]int64{
+			"USER":        totalUsers,
+			"AMC":         totalAMC,
+			"DISTRIBUTOR": totalDistributors,
+			"ADMIN":       totalAdmins,
+		},
+		"verified": map[string]int64{
+			"email":  emailVerified,
+			"mobile": mobileVerified,
+			"kyc":    kycVerified,
+		},
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "User Statistics.", response)
 }
 
 func DistributorList(c *fiber.Ctx) error {

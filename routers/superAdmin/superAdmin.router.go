@@ -17,6 +17,7 @@ func SetupSuperAdminRoutes(app *fiber.App) {
 	adminGroup.Put("/update-amc", superAdminValidator.UpdateAMCValidator(), middleware.JWTMiddleware, superAdminController.UpdateAMC)
 	adminGroup.Post("/register-distributor", superAdminValidator.RegisterAMC(), middleware.JWTMiddleware, superAdminController.RegisterDistributor)
 	adminGroup.Get("/transaction/list", superAdminValidator.List(), middleware.JWTMiddleware, superAdminController.TransactionList)
+	adminGroup.Get("/user/stats", middleware.JWTMiddleware, superAdminController.UserStats)
 	adminGroup.Get("/permission", superAdminValidator.PermissionByUserID(), middleware.JWTMiddleware, superAdminController.PermissionsByUserID)
 	adminGroup.Post("/create-maintenance", superAdminValidator.ValidateMaintenance(), middleware.JWTMiddleware, superAdminController.CreateMaintenance)
 }

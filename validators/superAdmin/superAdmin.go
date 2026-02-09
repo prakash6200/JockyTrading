@@ -35,8 +35,9 @@ func isValidSemVer(version string) bool {
 func List() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		reqData := new(struct {
-			Page  *int `json:"page"`
-			Limit *int `json:"limit"`
+			Page  *int    `json:"page"`
+			Limit *int    `json:"limit"`
+			Role  *string `json:"role"`
 		})
 
 		if err := c.QueryParser(reqData); err != nil {
@@ -57,6 +58,14 @@ func List() fiber.Handler {
 		// Validate Limit
 		if reqData.Limit == nil || *reqData.Limit < 1 {
 			errors["limit"] = "Limit must be greater than 0!"
+		}
+
+		// Validate Role if provided
+		if reqData.Role != nil && *reqData.Role != "" {
+			validRoles := map[string]bool{"USER": true, "AMC": true, "DISTRIBUTOR": true}
+			if !validRoles[*reqData.Role] {
+				errors["role"] = "Invalid role! Must be USER, AMC, or DISTRIBUTOR"
+			}
 		}
 
 		// Respond with validation errors if any exist
