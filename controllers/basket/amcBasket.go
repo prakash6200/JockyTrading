@@ -206,7 +206,35 @@ func AddStocksToBasket(c *fiber.Ctx) error {
 
 	// Check if stock already exists in this version
 	var existingStock basket.BasketStock
+	var isUpdate bool
 	if err := db.Where("basket_version_id = ? AND stock_id = ? AND is_deleted = false", version.ID, reqData.StockID).First(&existingStock).Error; err == nil {
+		isUpdate = true
+	}
+
+	// Auto-calculate weightage if not provided (0)
+	if reqData.Weightage == 0 {
+		var currentCount int64
+		db.Model(&basket.BasketStock{}).Where("basket_version_id = ? AND is_deleted = false", version.ID).Count(&currentCount)
+
+		totalStocks := currentCount
+		if !isUpdate {
+			totalStocks++
+		}
+
+		if totalStocks > 0 {
+			newWeight := 100.0 / float64(totalStocks)
+
+			// Update ALL existing stocks in this version
+			// Note: This updates existingStock too if it exists, which is fine as we overwrite it later if needed,
+			// but better to update DB first then local variable.
+			if err := db.Model(&basket.BasketStock{}).Where("basket_version_id = ? AND is_deleted = false", version.ID).Update("weightage", newWeight).Error; err != nil {
+				log.Printf("Error auto-balancing weights: %v", err)
+			}
+			reqData.Weightage = newWeight
+		}
+	}
+
+	if isUpdate {
 		// Update existing stock entry
 		existingStock.Quantity = reqData.Quantity
 		existingStock.Weightage = reqData.Weightage
@@ -265,6 +293,80 @@ func AddStocksToBasket(c *fiber.Ctx) error {
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Stock added to basket!", basketStock)
 }
 
+// EditBasketStock updates detailed stock holdings
+// POST /amc/basket/stocks/edit
+func EditBasketStock(c *fiber.Ctx) error {
+	userId := c.Locals("userId").(uint)
+
+	var user models.User
+	if err := database.Database.Db.Where("id = ? AND is_deleted = false AND role IN ?", userId, []string{"AMC", "ADMIN", "SUPER-ADMIN"}).First(&user).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusUnauthorized, false, "Access Denied!", nil)
+	}
+
+	reqData, ok := c.Locals("validatedEditStock").(*struct {
+		BasketID      uint     `json:"basketId"`
+		StockID       uint     `json:"stockId"`
+		Quantity      *int     `json:"quantity"`
+		Weightage     *float64 `json:"holdingPercentage"` // Users holdingPercentage maps to Weightage
+		OrderType     *string  `json:"orderType"`
+		TargetPrice   *float64 `json:"tgtPrice"` // Users tgtPrice maps to TargetPrice
+		StopLossPrice *float64 `json:"slPrice"`  // Users slPrice maps to StopLossPrice
+	})
+	if !ok {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request data!", nil)
+	}
+
+	db := database.Database.Db
+
+	// Verify basket ownership
+	var existingBasket basket.Basket
+	if err := db.Where("id = ? AND amc_id = ? AND is_deleted = false", reqData.BasketID, userId).First(&existingBasket).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Basket not found!", nil)
+	}
+
+	// Get draft or rejected version
+	var version basket.BasketVersion
+	if err := db.Where("basket_id = ? AND status IN ? AND is_deleted = false", reqData.BasketID, []string{basket.StatusDraft, basket.StatusRejected}).
+		Order("version_number DESC").First(&version).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "No editable version available!", nil)
+	}
+
+	// If rejected, revert to draft to edit
+	if version.Status == basket.StatusRejected {
+		version.Status = basket.StatusDraft
+		db.Save(&version)
+	}
+
+	// Find the stock
+	var stock basket.BasketStock
+	if err := db.Where("basket_version_id = ? AND stock_id = ? AND is_deleted = false", version.ID, reqData.StockID).First(&stock).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusNotFound, false, "Stock not found in this basket version!", nil)
+	}
+
+	// Update fields
+	if reqData.Quantity != nil {
+		stock.Quantity = *reqData.Quantity
+	}
+	if reqData.Weightage != nil {
+		stock.Weightage = *reqData.Weightage
+	}
+	if reqData.OrderType != nil {
+		stock.OrderType = *reqData.OrderType
+	}
+	if reqData.TargetPrice != nil {
+		stock.TargetPrice = *reqData.TargetPrice
+	}
+	if reqData.StopLossPrice != nil {
+		stock.StopLossPrice = *reqData.StopLossPrice
+	}
+
+	if err := db.Save(&stock).Error; err != nil {
+		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to update stock!", nil)
+	}
+
+	return middleware.JsonResponse(c, fiber.StatusOK, true, "Stock holdings updated!", stock)
+}
+
 // RemoveStockFromBasket removes a stock from the draft version
 func RemoveStockFromBasket(c *fiber.Ctx) error {
 	userId := c.Locals("userId").(uint)
@@ -315,6 +417,15 @@ func RemoveStockFromBasket(c *fiber.Ctx) error {
 	// Record history
 	metadata, _ := json.Marshal(map[string]interface{}{"stockId": reqData.StockID})
 	recordHistory(db, version.ID, basket.ActionStockRemoved, userId, basket.ActorAMC, "Stock removed from basket", metadata)
+
+	// Auto-rebalance weights after removal (Optional, but consistent with 'always 100%')
+	// Count remaining stocks
+	var remainingCount int64
+	db.Model(&basket.BasketStock{}).Where("basket_version_id = ? AND is_deleted = false", version.ID).Count(&remainingCount)
+	if remainingCount > 0 {
+		newWeight := 100.0 / float64(remainingCount)
+		db.Model(&basket.BasketStock{}).Where("basket_version_id = ? AND is_deleted = false", version.ID).Update("weightage", newWeight)
+	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Stock removed from basket!", nil)
 }
@@ -414,11 +525,43 @@ func GetMyBaskets(c *fiber.Ctx) error {
 
 	var baskets []basket.Basket
 	if err := query.Preload("Versions", "is_deleted = false").
-		Preload("Versions.Stocks", "is_deleted = false").
+		Preload("Versions.Stocks", "is_deleted = false"). // Preload Stocks
 		Offset(offset).Limit(*reqData.Limit).
 		Order("created_at DESC").
 		Find(&baskets).Error; err != nil {
 		return middleware.JsonResponse(c, fiber.StatusInternalServerError, false, "Failed to fetch baskets!", nil)
+	}
+
+	// Populate stock names manually (as Preload doesn't support joins for non-relation fields easily without custom struct)
+	var stockIDs []uint
+	for i := range baskets {
+		for j := range baskets[i].Versions {
+			for k := range baskets[i].Versions[j].Stocks {
+				stockIDs = append(stockIDs, baskets[i].Versions[j].Stocks[k].StockID)
+			}
+		}
+	}
+
+	if len(stockIDs) > 0 {
+		var stocks []models.Stocks
+		// Fetch only ID and Name to optimize
+		db.Table("stocks").Select("id, name").Where("id IN ?", stockIDs).Find(&stocks)
+
+		stockNameMap := make(map[uint]string)
+		for _, s := range stocks {
+			stockNameMap[s.ID] = s.Name
+		}
+
+		// Assign names back to basket stocks
+		for i := range baskets {
+			for j := range baskets[i].Versions {
+				for k := range baskets[i].Versions[j].Stocks {
+					if name, ok := stockNameMap[baskets[i].Versions[j].Stocks[k].StockID]; ok {
+						baskets[i].Versions[j].Stocks[k].StockName = name
+					}
+				}
+			}
+		}
 	}
 
 	return middleware.JsonResponse(c, fiber.StatusOK, true, "Baskets fetched successfully!", fiber.Map{

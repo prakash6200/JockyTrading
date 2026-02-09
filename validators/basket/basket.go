@@ -223,3 +223,49 @@ func GetBasketByID() fiber.Handler {
 		return c.Next()
 	}
 }
+
+// EditStock validates editing stock details
+func EditStock() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		reqData := new(struct {
+			BasketID      uint     `json:"basketId"`
+			StockID       uint     `json:"stockId"`
+			Quantity      *int     `json:"quantity"`
+			Weightage     *float64 `json:"holdingPercentage"`
+			OrderType     *string  `json:"orderType"`
+			TargetPrice   *float64 `json:"tgtPrice"`
+			StopLossPrice *float64 `json:"slPrice"`
+		})
+
+		if err := c.BodyParser(reqData); err != nil {
+			return middleware.JsonResponse(c, fiber.StatusBadRequest, false, "Invalid request body!", nil)
+		}
+
+		errors := make(map[string]string)
+
+		if reqData.BasketID == 0 {
+			errors["basketId"] = "Basket ID is required!"
+		}
+		if reqData.StockID == 0 {
+			errors["stockId"] = "Stock ID is required!"
+		}
+
+		if reqData.Weightage != nil && (*reqData.Weightage < 0 || *reqData.Weightage > 100) {
+			errors["holdingPercentage"] = "Holding percentage must be between 0 and 100!"
+		}
+
+		validOrderTypes := map[string]bool{"MARKET": true, "LIMIT": true}
+		if reqData.OrderType != nil && *reqData.OrderType != "" {
+			if _, ok := validOrderTypes[*reqData.OrderType]; !ok {
+				errors["orderType"] = "Order type must be MARKET or LIMIT!"
+			}
+		}
+
+		if len(errors) > 0 {
+			return middleware.ValidationErrorResponse(c, errors)
+		}
+
+		c.Locals("validatedEditStock", reqData)
+		return c.Next()
+	}
+}

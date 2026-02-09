@@ -7,6 +7,7 @@ import (
 	"fib/models/basket"
 	"fib/utils"
 	"log"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -269,7 +270,33 @@ func AddStocksWithPricing(c *fiber.Ctx) error {
 
 	// Check if stock already exists in this version
 	var existingStock basket.BasketStock
+	var isUpdate bool
 	if err := db.Where("basket_version_id = ? AND stock_id = ? AND is_deleted = false", version.ID, reqData.StockID).First(&existingStock).Error; err == nil {
+		isUpdate = true
+	}
+
+	// Auto-calculate weightage if not provided (0)
+	if reqData.HoldingPercentage == 0 {
+		var currentCount int64
+		db.Model(&basket.BasketStock{}).Where("basket_version_id = ? AND is_deleted = false", version.ID).Count(&currentCount)
+
+		totalStocks := currentCount
+		if !isUpdate {
+			totalStocks++
+		}
+
+		if totalStocks > 0 {
+			newWeight := 100.0 / float64(totalStocks)
+
+			// Update ALL existing stocks in this version
+			if err := db.Model(&basket.BasketStock{}).Where("basket_version_id = ? AND is_deleted = false", version.ID).Update("weightage", newWeight).Error; err != nil {
+				log.Printf("Error auto-balancing weights: %v", err)
+			}
+			reqData.HoldingPercentage = newWeight
+		}
+	}
+
+	if isUpdate {
 		// Update existing stock entry - INCREMENT quantity instead of replacing
 		existingStock.Weightage = reqData.HoldingPercentage
 		existingStock.OrderType = orderType
